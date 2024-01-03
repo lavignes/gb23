@@ -3,31 +3,28 @@ use std::io;
 use self::{
     bus::{Bus, BusDevice},
     cpu::Cpu,
-    mbc::null::Null,
 };
 
 mod apu;
 mod bus;
 mod cpu;
-mod mbc;
+pub mod mbc;
 mod ppu;
 
-pub struct Emu {
+pub struct Emu<M> {
     bios: Vec<u8>,
 
     cpu: Cpu,
-    mbc: Box<dyn BusDevice<MbcView>>,
+    mbc: M,
     wram: [[u8; 4096]; 8],
     hram: [u8; 256],
     wram_hi_bank: u8,
     ie: u8,
 }
 
-impl Emu {
-    pub fn new(bios: Vec<u8>, rom: Vec<u8>) -> io::Result<Self> {
+impl<M: BusDevice<MbcView>> Emu<M> {
+    pub fn new(bios: Vec<u8>, mbc: M) -> io::Result<Self> {
         let cpu = Cpu::new();
-        // TODO: parse rom to determine MBC
-        let mbc = Box::new(Null::new(rom, Vec::new()));
         Ok(Self {
             bios,
             cpu,
@@ -51,7 +48,7 @@ impl Emu {
         } = self;
         let mut cpu_view = CpuView {
             bios,
-            mbc: mbc.as_mut(),
+            mbc,
             wram,
             hram,
             wram_hi_bank,
@@ -73,7 +70,7 @@ impl Emu {
         } = self;
         let mut cpu_view = CpuView {
             bios,
-            mbc: mbc.as_mut(),
+            mbc,
             wram,
             hram,
             wram_hi_bank,
@@ -122,7 +119,7 @@ impl<'a> Bus for CpuView<'a> {
     fn write(&mut self, _addr: u16, _value: u8) {}
 }
 
-struct MbcView {}
+pub struct MbcView {}
 
 impl Bus for MbcView {
     fn read(&mut self, _addr: u16) -> u8 {

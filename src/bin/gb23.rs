@@ -9,7 +9,7 @@ use std::{
 use clap::Parser;
 use tracing::Level;
 
-use gb23::emu::Emu;
+use gb23::emu::{mbc::null::Null, Emu};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -64,7 +64,8 @@ fn main_real(args: Args) -> Result<(), impl Into<Box<dyn Error>>> {
     let video = sdl
         .video()
         .map_err(|e| format!("failed to initialize SDL2 video: {e}"))?;
-    let emu = Emu::new(bios_data, rom_data);
+    let mbc = Null::new(rom_data, Vec::new());
+    let emu = Emu::new(bios_data, mbc);
 
     Ok::<(), String>(())
 }
