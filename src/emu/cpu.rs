@@ -165,10 +165,10 @@ impl Cpu {
     fn store_register_indirect<B: Bus>(
         &self,
         bus: &mut B,
-        address: WideRegister,
+        addr: WideRegister,
         reg: Register,
     ) -> usize {
-        bus.write(self.wide_register(address), self.register(reg));
+        bus.write(self.wide_register(addr), self.register(reg));
         8
     }
 
@@ -229,10 +229,10 @@ impl Cpu {
 
     #[inline(always)]
     fn rlc_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.rlc_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -257,10 +257,10 @@ impl Cpu {
 
     #[inline(always)]
     fn rl_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.rl_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -285,10 +285,10 @@ impl Cpu {
 
     #[inline(always)]
     fn rrc_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.rrc_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -313,10 +313,10 @@ impl Cpu {
 
     #[inline(always)]
     fn rr_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.rr_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -377,10 +377,10 @@ impl Cpu {
 
     #[inline(always)]
     fn sla_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.sla_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -404,10 +404,10 @@ impl Cpu {
 
     #[inline(always)]
     fn sra_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.sra_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -431,23 +431,23 @@ impl Cpu {
 
     #[inline(always)]
     fn srl_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.srl_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
     #[inline(always)]
-    fn write_wide<B: Bus>(&self, bus: &mut B, address: u16, value: u16) {
-        bus.write(address, value as u8);
-        bus.write(address.wrapping_add(1), (value >> 8) as u8);
+    fn write_wide<B: Bus>(&self, bus: &mut B, addr: u16, value: u16) {
+        bus.write(addr, value as u8);
+        bus.write(addr.wrapping_add(1), (value >> 8) as u8);
     }
 
     #[inline(always)]
     fn write_stack_immediate<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.fetch_wide(bus);
-        self.write_wide(bus, address, self.sp);
+        let addr = self.fetch_wide(bus);
+        self.write_wide(bus, addr, self.sp);
         20
     }
 
@@ -467,10 +467,10 @@ impl Cpu {
     fn load_register_indirect<B: Bus>(
         &mut self,
         bus: &mut B,
-        address: WideRegister,
+        addr: WideRegister,
         reg: Register,
     ) -> usize {
-        let value = bus.read(self.wide_register(address));
+        let value = bus.read(self.wide_register(addr));
         self.set_register(reg, value);
         8
     }
@@ -565,35 +565,35 @@ impl Cpu {
 
     #[inline(always)]
     fn store_a_hli_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        bus.write(address, self.register(Register::A));
-        self.set_wide_register(WideRegister::HL, address.wrapping_add(1));
+        let addr = self.wide_register(WideRegister::HL);
+        bus.write(addr, self.register(Register::A));
+        self.set_wide_register(WideRegister::HL, addr.wrapping_add(1));
         8
     }
 
     #[inline(always)]
     fn store_a_hld_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        bus.write(address, self.register(Register::A));
-        self.set_wide_register(WideRegister::HL, address.wrapping_sub(1));
+        let addr = self.wide_register(WideRegister::HL);
+        bus.write(addr, self.register(Register::A));
+        self.set_wide_register(WideRegister::HL, addr.wrapping_sub(1));
         8
     }
 
     #[inline(always)]
     fn load_a_hli_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.set_register(Register::A, value);
-        self.set_wide_register(WideRegister::HL, address.wrapping_add(1));
+        self.set_wide_register(WideRegister::HL, addr.wrapping_add(1));
         8
     }
 
     #[inline(always)]
     fn load_a_hld_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.set_register(Register::A, value);
-        self.set_wide_register(WideRegister::HL, address.wrapping_sub(1));
+        self.set_wide_register(WideRegister::HL, addr.wrapping_sub(1));
         8
     }
 
@@ -606,10 +606,10 @@ impl Cpu {
 
     #[inline(always)]
     fn inc_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = value.wrapping_add(1);
-        bus.write(address, result);
+        bus.write(addr, result);
         self.set_flag(Flag::Zero, value == 0x00);
         self.set_flag(Flag::Negative, false);
         self.set_flag(Flag::HalfCarry, ((result ^ value) & 0x10) != 0);
@@ -618,10 +618,10 @@ impl Cpu {
 
     #[inline(always)]
     fn dec_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = value.wrapping_sub(1);
-        bus.write(address, result);
+        bus.write(addr, result);
         self.set_flag(Flag::Zero, value == 0x00);
         self.set_flag(Flag::Negative, true);
         self.set_flag(Flag::HalfCarry, ((result ^ value) & 0x10) != 0);
@@ -637,16 +637,16 @@ impl Cpu {
 
     #[inline(always)]
     fn store_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.fetch_wide(bus);
+        let addr = self.fetch_wide(bus);
         let value = self.register(Register::A);
-        bus.write(address, value);
+        bus.write(addr, value);
         16
     }
 
     #[inline(always)]
     fn load_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.fetch_wide(bus);
-        let value = bus.read(address);
+        let addr = self.fetch_wide(bus);
+        let value = bus.read(addr);
         self.set_register(Register::A, value);
         16
     }
@@ -677,8 +677,8 @@ impl Cpu {
 
     #[inline(always)]
     fn add_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.add_value(value, false);
         8
     }
@@ -693,8 +693,8 @@ impl Cpu {
 
     #[inline(always)]
     fn add_carry_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let carry = self.flag(Flag::Carry);
         self.add_value(value, carry);
         8
@@ -720,8 +720,8 @@ impl Cpu {
 
     #[inline(always)]
     fn sub_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.sub_value(value, false);
         8
     }
@@ -736,8 +736,8 @@ impl Cpu {
 
     #[inline(always)]
     fn sub_carry_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let carry = self.flag(Flag::Carry);
         self.sub_value(value, carry);
         8
@@ -763,8 +763,8 @@ impl Cpu {
 
     #[inline(always)]
     fn and_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.and_value(value);
         8
     }
@@ -796,8 +796,8 @@ impl Cpu {
 
     #[inline(always)]
     fn xor_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.xor_value(value);
         8
     }
@@ -829,8 +829,8 @@ impl Cpu {
 
     #[inline(always)]
     fn or_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.or_value(value);
         8
     }
@@ -861,8 +861,8 @@ impl Cpu {
 
     #[inline(always)]
     fn compare_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.cp_value(value, false);
         8
     }
@@ -911,9 +911,9 @@ impl Cpu {
 
     #[inline(always)]
     fn call<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.fetch_wide(bus);
+        let addr = self.fetch_wide(bus);
         self.push_wide(bus, WideRegister::PC);
-        self.pc = address;
+        self.pc = addr;
         24
     }
 
@@ -963,9 +963,9 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn rst<B: Bus>(&mut self, bus: &mut B, address: u16) -> usize {
+    fn rst<B: Bus>(&mut self, bus: &mut B, addr: u16) -> usize {
         self.push_wide(bus, WideRegister::PC);
-        self.pc = address;
+        self.pc = addr;
         16
     }
 
@@ -977,8 +977,8 @@ impl Cpu {
 
     #[inline(always)]
     fn write_high_offset<B: Bus>(&mut self, bus: &mut B, offset: u8, value: u8) {
-        let address = 0xFF00 | (offset as u16);
-        bus.write(address, value);
+        let addr = 0xFF00 | (offset as u16);
+        bus.write(addr, value);
     }
 
     #[inline(always)]
@@ -999,8 +999,8 @@ impl Cpu {
 
     #[inline(always)]
     fn read_high_indirect<B: Bus>(&mut self, bus: &mut B, offset: u8) -> u8 {
-        let address = 0xFF00 + (offset as u16);
-        bus.read(address)
+        let addr = 0xFF00 + (offset as u16);
+        bus.read(addr)
     }
 
     #[inline(always)]
@@ -1080,10 +1080,10 @@ impl Cpu {
 
     #[inline(always)]
     fn swap_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.swap_value(value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -1103,8 +1103,8 @@ impl Cpu {
 
     #[inline(always)]
     fn bit_hl_indirect<B: Bus>(&mut self, bus: &mut B, bit: u8) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         self.bit_value(bit, value);
         16
     }
@@ -1124,10 +1124,10 @@ impl Cpu {
 
     #[inline(always)]
     fn reset_bit_hl_indirect<B: Bus>(&mut self, bus: &mut B, bit: u8) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.reset_bit_value(bit, value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -1146,10 +1146,10 @@ impl Cpu {
 
     #[inline(always)]
     fn set_bit_hl_indirect<B: Bus>(&mut self, bus: &mut B, bit: u8) -> usize {
-        let address = self.wide_register(WideRegister::HL);
-        let value = bus.read(address);
+        let addr = self.wide_register(WideRegister::HL);
+        let value = bus.read(addr);
         let result = self.set_bit_value(bit, value);
-        bus.write(address, result);
+        bus.write(addr, result);
         16
     }
 
@@ -1445,12 +1445,6 @@ impl<B: Bus> BusDevice<B> for Cpu {
         self.halted = false;
     }
 
-    fn read(&mut self, _addr: u16) -> u8 {
-        0xFF
-    }
-
-    fn write(&mut self, _addr: u16, _value: u8) {}
-
     fn tick(&mut self, bus: &mut B) -> usize {
         if self.halted {
             // TODO: exit halt state
@@ -1458,24 +1452,24 @@ impl<B: Bus> BusDevice<B> for Cpu {
         }
         // handle interrupts
         if self.irq && self.ime {
-            let int_flags = bus.read(Port::IF);
-            let int_masked = bus.read(Port::IE) & int_flags;
-            if int_masked != 0 {
-                if (int_masked & 0x01) != 0x00 {
+            let iflags = bus.read(Port::IF);
+            let imasked = bus.read(Port::IE) & iflags;
+            if imasked != 0 {
+                if (imasked & 0x01) != 0x00 {
                     self.rst(bus, 0x0040);
-                    bus.write(Port::IF, int_flags ^ 0x01);
-                } else if (int_masked & 0x02) != 0x00 {
+                    bus.write(Port::IF, iflags ^ 0x01);
+                } else if (imasked & 0x02) != 0x00 {
                     self.rst(bus, 0x0048);
-                    bus.write(Port::IF, int_flags ^ 0x02);
-                } else if (int_masked & 0x04) != 0x00 {
+                    bus.write(Port::IF, iflags ^ 0x02);
+                } else if (imasked & 0x04) != 0x00 {
                     self.rst(bus, 0x0050);
-                    bus.write(Port::IF, int_flags ^ 0x04);
-                } else if (int_masked & 0x08) != 0x00 {
+                    bus.write(Port::IF, iflags ^ 0x04);
+                } else if (imasked & 0x08) != 0x00 {
                     self.rst(bus, 0x0058);
-                    bus.write(Port::IF, int_flags ^ 0x08);
-                } else if (int_masked & 0x10) != 0x00 {
+                    bus.write(Port::IF, iflags ^ 0x08);
+                } else if (imasked & 0x10) != 0x00 {
                     self.rst(bus, 0x0060);
-                    bus.write(Port::IF, int_flags ^ 0x10);
+                    bus.write(Port::IF, iflags ^ 0x10);
                 }
                 self.ime = false;
                 return 20;
@@ -1707,7 +1701,7 @@ impl<B: Bus> BusDevice<B> for Cpu {
             0xD0 => self.ret_condition(bus, Condition::NotCarry),
             0xD1 => self.pop_wide(bus, WideRegister::DE),
             0xD2 => self.jmp_condition(bus, Condition::NotCarry),
-            0xD3 => unimplemented!("illegal"),
+            0xD3 => unimplemented!("illegal $D3"),
             0xD4 => self.call_condition(bus, Condition::NotCarry),
             0xD5 => self.push_wide(bus, WideRegister::DE),
             0xD6 => self.sub_immediate(bus),
@@ -1715,26 +1709,26 @@ impl<B: Bus> BusDevice<B> for Cpu {
             0xD8 => self.ret_condition(bus, Condition::Carry),
             0xD9 => self.reti(bus),
             0xDA => self.jmp_condition(bus, Condition::Carry),
-            0xDB => unimplemented!("illegal"),
+            0xDB => unimplemented!("illegal $DB"),
             0xDC => self.call_condition(bus, Condition::Carry),
-            0xDD => unimplemented!("illegal"),
+            0xDD => unimplemented!("illegal $DD"),
             0xDE => self.sub_carry_immediate(bus),
             0xDF => self.rst(bus, 0x0018),
 
             0xE0 => self.store_high_indirect(bus),
             0xE1 => self.pop_wide(bus, WideRegister::HL),
             0xE2 => self.store_high_c_indirect(bus),
-            0xE3 => unimplemented!("illegal"),
-            0xE4 => unimplemented!("illegal"),
+            0xE3 => unimplemented!("illegal $E3"),
+            0xE4 => unimplemented!("illegal $E4"),
             0xE5 => self.push_wide(bus, WideRegister::HL),
             0xE6 => self.and_immediate(bus),
             0xE7 => self.rst(bus, 0x0020),
             0xE8 => self.add_sp(bus),
             0xE9 => self.jmp_hl(),
             0xEA => self.store_indirect(bus),
-            0xEB => unimplemented!("illegal"),
-            0xEC => unimplemented!("illegal"),
-            0xED => unimplemented!("illegal"),
+            0xEB => unimplemented!("illegal $EB"),
+            0xEC => unimplemented!("illegal $EC"),
+            0xED => unimplemented!("illegal $ED"),
             0xEE => self.xor_immediate(bus),
             0xEF => self.rst(bus, 0x0028),
 
@@ -1742,16 +1736,16 @@ impl<B: Bus> BusDevice<B> for Cpu {
             0xF1 => self.pop_wide(bus, WideRegister::AF),
             0xF2 => self.load_high_c_indirect(bus),
             0xF3 => self.di(),
-            0xF4 => unimplemented!("illegal"),
+            0xF4 => unimplemented!("illegal $F4"),
             0xF5 => self.push_wide(bus, WideRegister::AF),
             0xF6 => self.or_immediate(bus),
             0xF7 => self.rst(bus, 0x0030),
-            0xF8 => unimplemented!("illegal"),
+            0xF8 => unimplemented!("illegal $F8"),
             0xF9 => self.copy_wide(WideRegister::SP, WideRegister::HL),
             0xFA => self.load_indirect(bus),
             0xFB => self.ei(),
-            0xFC => unimplemented!("illegal"),
-            0xFD => unimplemented!("illegal"),
+            0xFC => unimplemented!("illegal $FC"),
+            0xFD => unimplemented!("illegal $FD"),
             0xFE => self.compare_immediate(bus),
             0xFF => self.rst(bus, 0x0038),
         }
