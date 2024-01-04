@@ -149,7 +149,7 @@ struct CpuView<'a, M, P> {
 impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
     fn read(&mut self, addr: u16) -> u8 {
         match addr {
-            // bios
+            // BIOS
             0x0000..=0x00FF if *self.bios == 0 => self.bios_data[addr as usize],
             // cart
             0x0000..=0x7FFF => self.mbc.read(addr),

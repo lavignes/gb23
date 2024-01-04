@@ -65,6 +65,7 @@ impl Ppu {
     }
 
     fn draw_line(&mut self, line: &mut [u32; 160]) {
+        // we update the lcd per line to properly emulate raster-effects
         // line.fill(u32::from_le_bytes([self.ly, self.ly, self.ly, self.ly]));
         let bg_data = if (self.lcdc & 0x08) == 0 {
             &self.bg_data1

@@ -1,6 +1,5 @@
 use core::slice;
 use std::{
-    error::Error,
     fs::File,
     io::{self, Read},
     mem,
@@ -44,14 +43,14 @@ fn main() -> ExitCode {
         .with_writer(io::stderr)
         .init();
     if let Err(e) = main_real(args) {
-        tracing::error!("{}", e.into());
+        tracing::error!("{e}");
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
     }
 }
 
-fn main_real(args: Args) -> Result<(), impl Into<Box<dyn Error>>> {
+fn main_real(args: Args) -> Result<(), String> {
     let mut rom_data = Vec::new();
     File::open(&args.rom)
         .map_err(|e| format!("failed to open ROM file: {e}"))?
@@ -128,5 +127,5 @@ fn main_real(args: Args) -> Result<(), impl Into<Box<dyn Error>>> {
             cycles = 0;
         }
     }
-    Ok::<(), String>(())
+    Ok(())
 }
