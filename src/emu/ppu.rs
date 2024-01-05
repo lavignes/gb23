@@ -1,3 +1,5 @@
+use sdl2::libc::rand;
+
 use super::bus::{Bus, BusDevice, Port};
 
 pub struct Ppu {
@@ -72,19 +74,20 @@ impl Ppu {
         } else {
             &self.bg_data2
         };
-        let screen_x = self.scx as usize;
-        let screen_y = (self.ly as usize) + (self.scy as usize);
+        // TODO im applying wrapping here for Y, but X is more complex
+        let screen_x = self.scx as usize % 256;
+        let screen_y = ((self.ly as usize) + (self.scy as usize)) % 256;
         // offset into the 8 2bpp bytes on the current line (assuming no flip)
         let chr_y = 2 * (screen_y % 8);
         // find leftmost bg tile on screen
-        let mut bg_tile_idx = (screen_x / 8) + (screen_y / 8) * 32;
+        let mut bg_tile_idx = (screen_x / 8) + ((screen_y / 8) * 32);
         let mut chr_x = screen_x % 8;
         let mut dot = 0;
         // only 20 tiles are visible per line
         for _ in 0..20 {
             let chr_idx = bg_data[0][bg_tile_idx];
             let attr = bg_data[1][bg_tile_idx];
-            let chr_data_offset = if (self.lcdc & 0x10) == 0 {
+            let chr_data_offset = if (self.lcdc & 0x10) != 0 {
                 chr_idx as usize * 16
             } else {
                 0x1000usize.wrapping_add_signed(chr_idx as i8 as isize * 16)
@@ -92,13 +95,14 @@ impl Ppu {
             let lo = self.chr_data[0][chr_data_offset + chr_y];
             let hi = self.chr_data[0][chr_data_offset + chr_y + 1];
             for i in 0..8 {
-                let color = (((hi >> i) << 1) | (lo >> i)) & 0b11;
-                line[dot + i] = match color {
-                    0 => 0xFFFFFFFF,
-                    1 => 0xAAAAAAFF,
-                    2 => 0x555555FF,
-                    3 => 0x000000FF,
-                    _ => unreachable!(),
+                // TODO: so janky
+                let lo = (lo & (0x80 >> i)) != 0;
+                let hi = (hi & (0x80 >> i)) != 0;
+                line[dot + i] = match (lo, hi) {
+                    (false, false) => 0xFFFFFFFF,
+                    (false, true) => 0xAAAAAAFF,
+                    (true, false) => 0x555555FF,
+                    (true, true) => 0x000000FF,
                 };
             }
             bg_tile_idx += 1;
@@ -110,6 +114,17 @@ impl Ppu {
 
 impl<B: Bus> BusDevice<B> for Ppu {
     fn reset(&mut self, _bus: &mut B) {
+        // TODO: use real random API
+        for b in self.chr_data[0].iter_mut() {
+            *b = unsafe { rand() as u8 };
+        }
+        for b in self.bg_data1[0].iter_mut() {
+            *b = unsafe { rand() as u8 };
+        }
+        for b in self.bg_data2[0].iter_mut() {
+            *b = unsafe { rand() as u8 };
+        }
+
         self.dot = 0;
         self.vbk = 0;
     }
@@ -187,6 +202,13 @@ impl<B: Bus> BusDevice<B> for Ppu {
     }
 
     fn tick(&mut self, bus: &mut B) -> usize {
+        if (self.lcdc & 0x80) == 0 {
+            // turned off
+            self.stat &= !0x03;
+            self.ly = 0;
+            self.dot = 0;
+            return 0;
+        }
         if self.dot == 0 {
             if self.ly == self.lyc {
                 self.stat |= 0x03;

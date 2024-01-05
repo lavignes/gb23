@@ -5,11 +5,20 @@ use std::{
     mem,
     path::PathBuf,
     process::ExitCode,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
 use clap::Parser;
-use gb23::emu::{mbc::null::Null, Emu};
+use gb23::emu::{
+    cpu::{Flag, WideRegister},
+    mbc::null::Null,
+    Emu,
+};
+use rustyline::{error::ReadlineError, Config, DefaultEditor};
 use sdl2::{pixels::PixelFormatEnum, rect::Rect};
 use tracing::Level;
 
@@ -70,9 +79,6 @@ fn main_real(args: Args) -> Result<(), String> {
     let video = sdl
         .video()
         .map_err(|e| format!("failed to initialize SDL2 video: {e}"))?;
-    let mbc = Null::new(rom_data, Vec::new());
-    let mut emu = Emu::new(bios_data, mbc);
-    emu.reset();
     let window = video
         .window("gb23", 160 * 4, 144 * 4)
         .allow_highdpi()
@@ -87,12 +93,95 @@ fn main_real(args: Args) -> Result<(), String> {
         .map_err(|e| format!("failed to map window to canvas: {e}"))?;
     let texture_creator = canvas.texture_creator();
     let mut texture = texture_creator
-        .create_texture_streaming(PixelFormatEnum::RGBA32, 256, 256)
+        .create_texture_streaming(PixelFormatEnum::RGBA8888, 256, 256)
         .map_err(|e| format!("failed to create texture: {e}"))?;
+
+    let mbc = Null::new(rom_data, Vec::new());
+    let mut emu = Emu::new(bios_data, mbc);
+    emu.reset();
+
+    let debug_mode = Arc::new(AtomicBool::new(args.debug));
+    signal_hook::flag::register(signal_hook::consts::SIGUSR1, debug_mode.clone())
+        .map_err(|e| {
+            tracing::warn!("external debugger unavailable: failed to install SIGUSR1 handler: {e}")
+        })
+        .ok();
+    let mut breakpoints = Vec::new();
+
     let mut start = Instant::now();
     let mut frames = 0;
     let mut cycles = 0;
-    loop {
+    'da_loop: loop {
+        if breakpoints.contains(&emu.cpu().wide_register(WideRegister::PC)) {
+            debug_mode.store(true, Ordering::Relaxed);
+        }
+        if debug_mode.load(Ordering::Relaxed) {
+            let mut rl =
+                DefaultEditor::with_config(Config::builder().auto_add_history(true).build())
+                    .map_err(|e| format!("failed to initialize line editor: {e}"))?;
+            loop {
+                #[rustfmt::skip]
+                println!(
+                    "PC={:04X} AF={:04X} BC={:04X} DE={:04X} HL={:04X} SP={:04X} [{}{}{}{}]",
+                    emu.cpu().wide_register(WideRegister::PC),
+                    emu.cpu().wide_register(WideRegister::AF),
+                    emu.cpu().wide_register(WideRegister::BC),
+                    emu.cpu().wide_register(WideRegister::DE),
+                    emu.cpu().wide_register(WideRegister::HL),
+                    emu.cpu().wide_register(WideRegister::SP),
+                    if emu.cpu().flag(Flag::Zero) { 'Z' } else { '-' },
+                    if emu.cpu().flag(Flag::Negative) { 'N' } else { '-' },
+                    if emu.cpu().flag(Flag::HalfCarry) { 'H' } else { '-' },
+                    if emu.cpu().flag(Flag::Carry) { 'C' } else { '-' },
+                );
+                match rl.readline("> ") {
+                    Ok(line) => {
+                        let line = if line.is_empty() {
+                            if let Some(line) = rl.history().iter().last() {
+                                line
+                            } else {
+                                continue;
+                            }
+                        } else {
+                            &line
+                        };
+                        let parts = line
+                            .split_whitespace()
+                            .map(String::from)
+                            .collect::<Vec<String>>();
+                        match parts[0].as_str() {
+                            "s" => {
+                                emu.tick();
+                            }
+                            "b" => {
+                                let addr = u16::from_str_radix(&parts[1], 16).unwrap();
+                                breakpoints.push(addr);
+                            }
+                            "c" => {
+                                debug_mode.store(false, Ordering::Relaxed);
+                                break;
+                            }
+                            "x" => {
+                                let addr = u16::from_str_radix(&parts[1], 16).unwrap();
+                                let value = emu.cpu_read(addr);
+                                println!("{value:02X}");
+                            }
+                            _ => println!("?"),
+                        }
+                    }
+                    Err(ReadlineError::Eof) => {
+                        break 'da_loop;
+                    }
+                    Err(ReadlineError::Io(e)) => {
+                        return Err(format!("could not read line: {e}"));
+                    }
+                    Err(ReadlineError::Errno(e)) => {
+                        return Err(format!("could not read line: {}", e.desc()));
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
         let now = Instant::now();
         cycles += emu.tick();
         if emu.vblanked() {

@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, mem};
 
 use self::{
     bus::{Bus, BusDevice, Port},
@@ -8,7 +8,7 @@ use self::{
 
 mod apu;
 mod bus;
-mod cpu;
+pub mod cpu;
 pub mod mbc;
 mod ppu;
 
@@ -131,6 +131,37 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
     pub fn lcd(&self) -> &[[u32; 160]; 144] {
         &self.lcd
     }
+
+    pub fn cpu(&self) -> &Cpu {
+        &self.cpu
+    }
+
+    pub fn cpu_read(&mut self, addr: u16) -> u8 {
+        let Self {
+            ref bios_data,
+            ref mut mbc,
+            ref mut ppu,
+            ref mut wram,
+            ref mut hram,
+            ref mut iflags,
+            ref mut bios,
+            ref mut svbk,
+            ref mut ie,
+            ..
+        } = self;
+        let mut cpu_view = CpuView {
+            bios_data,
+            mbc,
+            ppu,
+            wram,
+            hram,
+            iflags,
+            bios,
+            svbk,
+            ie,
+        };
+        cpu_view.read(addr)
+    }
 }
 
 struct CpuView<'a, M, P> {
@@ -186,7 +217,8 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             // HRAM
             0xFF80..=0xFFFE => self.hram[(addr - 0xFF80) as usize],
             Port::IE => *self.ie,
-            _ => todo!(),
+            // TODO
+            _ => 0xFF,
         }
     }
 

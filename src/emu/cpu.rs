@@ -18,7 +18,7 @@ pub struct Cpu {
 }
 
 #[derive(Copy, Clone)]
-enum WideRegister {
+pub enum WideRegister {
     PC,
     SP,
     AF,
@@ -28,8 +28,9 @@ enum WideRegister {
 }
 
 #[derive(Copy, Clone)]
-enum Register {
+pub enum Register {
     A,
+    F,
     B,
     C,
     D,
@@ -39,7 +40,7 @@ enum Register {
 }
 
 #[derive(Copy, Clone)]
-enum Flag {
+pub enum Flag {
     Zero = 0x80,
     Negative = 0x40,
     HalfCarry = 0x20,
@@ -60,7 +61,7 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn flag(&self, flag: Flag) -> bool {
+    pub fn flag(&self, flag: Flag) -> bool {
         (self.af[0] & (flag as u8)) != 0
     }
 
@@ -86,9 +87,10 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn register(&self, reg: Register) -> u8 {
+    pub fn register(&self, reg: Register) -> u8 {
         match reg {
             Register::A => self.af[1],
+            Register::F => self.af[0],
             Register::B => self.bc[1],
             Register::C => self.bc[0],
             Register::D => self.de[1],
@@ -102,6 +104,7 @@ impl Cpu {
     fn set_register(&mut self, reg: Register, value: u8) {
         match reg {
             Register::A => self.af[1] = value,
+            Register::F => self.af[0] = value,
             Register::B => self.bc[1] = value,
             Register::C => self.bc[0] = value,
             Register::D => self.de[1] = value,
@@ -119,7 +122,7 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn wide_register(&self, reg: WideRegister) -> u16 {
+    pub fn wide_register(&self, reg: WideRegister) -> u16 {
         match reg {
             WideRegister::PC => self.pc,
             WideRegister::SP => self.sp,
@@ -500,12 +503,13 @@ impl Cpu {
         if met {
             self.jr(bus)
         } else {
+            self.fetch(bus);
             8
         }
     }
 
     #[inline(always)]
-    fn pop_wide_value<B: Bus>(&mut self, bus: &mut B) -> u16 {
+    fn pop_value<B: Bus>(&mut self, bus: &mut B) -> u16 {
         let lo = bus.read(self.sp);
         self.sp = self.sp.wrapping_add(1);
         let hi = bus.read(self.sp);
@@ -514,14 +518,16 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn push_wide_value<B: Bus>(&mut self, bus: &mut B, value: u16) {
-        self.sp = self.sp.wrapping_sub(2);
-        self.write_wide(bus, self.sp, value);
+    fn push_value<B: Bus>(&mut self, bus: &mut B, value: u16) {
+        self.sp = self.sp.wrapping_sub(1);
+        bus.write(self.sp, (value >> 8) as u8);
+        self.sp = self.sp.wrapping_sub(1);
+        bus.write(self.sp, value as u8);
     }
 
     #[inline(always)]
     fn ret<B: Bus>(&mut self, bus: &mut B) -> usize {
-        self.pc = self.pop_wide_value(bus);
+        self.pc = self.pop_value(bus);
         16
     }
 
@@ -875,16 +881,16 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn pop_wide<B: Bus>(&mut self, bus: &mut B, reg: WideRegister) -> usize {
-        let value = self.pop_wide_value(bus);
+    fn pop<B: Bus>(&mut self, bus: &mut B, reg: WideRegister) -> usize {
+        let value = self.pop_value(bus);
         self.set_wide_register(reg, value);
         12
     }
 
     #[inline(always)]
-    fn push_wide<B: Bus>(&mut self, bus: &mut B, reg: WideRegister) -> usize {
+    fn push<B: Bus>(&mut self, bus: &mut B, reg: WideRegister) -> usize {
         let value = self.wide_register(reg);
-        self.push_wide_value(bus, value);
+        self.push_value(bus, value);
         16
     }
 
@@ -912,7 +918,7 @@ impl Cpu {
     #[inline(always)]
     fn call<B: Bus>(&mut self, bus: &mut B) -> usize {
         let addr = self.fetch_wide(bus);
-        self.push_wide(bus, WideRegister::PC);
+        self.push(bus, WideRegister::PC);
         self.pc = addr;
         24
     }
@@ -964,7 +970,7 @@ impl Cpu {
 
     #[inline(always)]
     fn rst<B: Bus>(&mut self, bus: &mut B, addr: u16) -> usize {
-        self.push_wide(bus, WideRegister::PC);
+        self.push(bus, WideRegister::PC);
         self.pc = addr;
         16
     }
@@ -1434,11 +1440,6 @@ impl Cpu {
 impl<B: Bus> BusDevice<B> for Cpu {
     fn reset(&mut self, _bus: &mut B) {
         self.pc = 0x0000;
-        self.sp = 0x1234; // inject garbo
-        self.af = [0x56, 0x78];
-        self.bc = [0x9A, 0xBC];
-        self.de = [0xDE, 0xF0];
-        self.hl = [0x12, 0x34];
         self.irq = false;
         self.ime = false;
         self.stopped = false;
@@ -1682,11 +1683,11 @@ impl<B: Bus> BusDevice<B> for Cpu {
             0xBF => self.compare(Register::A),
 
             0xC0 => self.ret_condition(bus, Condition::NotZero),
-            0xC1 => self.pop_wide(bus, WideRegister::BC),
+            0xC1 => self.pop(bus, WideRegister::BC),
             0xC2 => self.jmp_condition(bus, Condition::NotZero),
             0xC3 => self.jmp(bus),
             0xC4 => self.call_condition(bus, Condition::NotZero),
-            0xC5 => self.push_wide(bus, WideRegister::BC),
+            0xC5 => self.push(bus, WideRegister::BC),
             0xC6 => self.add_immediate(bus),
             0xC7 => self.rst(bus, 0x0000),
             0xC8 => self.ret_condition(bus, Condition::Zero),
@@ -1699,53 +1700,53 @@ impl<B: Bus> BusDevice<B> for Cpu {
             0xCF => self.rst(bus, 0x0008),
 
             0xD0 => self.ret_condition(bus, Condition::NotCarry),
-            0xD1 => self.pop_wide(bus, WideRegister::DE),
+            0xD1 => self.pop(bus, WideRegister::DE),
             0xD2 => self.jmp_condition(bus, Condition::NotCarry),
-            0xD3 => unimplemented!("illegal $D3"),
+            0xD3 => 4,
             0xD4 => self.call_condition(bus, Condition::NotCarry),
-            0xD5 => self.push_wide(bus, WideRegister::DE),
+            0xD5 => self.push(bus, WideRegister::DE),
             0xD6 => self.sub_immediate(bus),
             0xD7 => self.rst(bus, 0x0010),
             0xD8 => self.ret_condition(bus, Condition::Carry),
             0xD9 => self.reti(bus),
             0xDA => self.jmp_condition(bus, Condition::Carry),
-            0xDB => unimplemented!("illegal $DB"),
+            0xDB => 4,
             0xDC => self.call_condition(bus, Condition::Carry),
-            0xDD => unimplemented!("illegal $DD"),
+            0xDD => 4,
             0xDE => self.sub_carry_immediate(bus),
             0xDF => self.rst(bus, 0x0018),
 
             0xE0 => self.store_high_indirect(bus),
-            0xE1 => self.pop_wide(bus, WideRegister::HL),
+            0xE1 => self.pop(bus, WideRegister::HL),
             0xE2 => self.store_high_c_indirect(bus),
-            0xE3 => unimplemented!("illegal $E3"),
-            0xE4 => unimplemented!("illegal $E4"),
-            0xE5 => self.push_wide(bus, WideRegister::HL),
+            0xE3 => 4,
+            0xE4 => 4,
+            0xE5 => self.push(bus, WideRegister::HL),
             0xE6 => self.and_immediate(bus),
             0xE7 => self.rst(bus, 0x0020),
             0xE8 => self.add_sp(bus),
             0xE9 => self.jmp_hl(),
             0xEA => self.store_indirect(bus),
-            0xEB => unimplemented!("illegal $EB"),
-            0xEC => unimplemented!("illegal $EC"),
-            0xED => unimplemented!("illegal $ED"),
+            0xEB => 4,
+            0xEC => 4,
+            0xED => 4,
             0xEE => self.xor_immediate(bus),
             0xEF => self.rst(bus, 0x0028),
 
             0xF0 => self.load_high_indirect(bus),
-            0xF1 => self.pop_wide(bus, WideRegister::AF),
+            0xF1 => self.pop(bus, WideRegister::AF),
             0xF2 => self.load_high_c_indirect(bus),
             0xF3 => self.di(),
-            0xF4 => unimplemented!("illegal $F4"),
-            0xF5 => self.push_wide(bus, WideRegister::AF),
+            0xF4 => 4,
+            0xF5 => self.push(bus, WideRegister::AF),
             0xF6 => self.or_immediate(bus),
             0xF7 => self.rst(bus, 0x0030),
-            0xF8 => unimplemented!("illegal $F8"),
+            0xF8 => 4,
             0xF9 => self.copy_wide(WideRegister::SP, WideRegister::HL),
             0xFA => self.load_indirect(bus),
             0xFB => self.ei(),
-            0xFC => unimplemented!("illegal $FC"),
-            0xFD => unimplemented!("illegal $FD"),
+            0xFC => 4,
+            0xFD => 4,
             0xFE => self.compare_immediate(bus),
             0xFF => self.rst(bus, 0x0038),
         }
