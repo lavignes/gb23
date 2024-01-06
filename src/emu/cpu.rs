@@ -456,7 +456,7 @@ impl Cpu {
         let hl = self.wide_register(WideRegister::HL);
         let rhs = self.wide_register(reg);
         let (result, carry) = hl.overflowing_add(rhs);
-        self.set_wide_register(WideRegister::HL, hl);
+        self.set_wide_register(WideRegister::HL, result);
         self.set_flag(Flag::HalfCarry, ((hl ^ result ^ rhs) & 0x1000) != 0);
         self.set_flag(Flag::Negative, false);
         self.set_flag(Flag::Carry, carry);
