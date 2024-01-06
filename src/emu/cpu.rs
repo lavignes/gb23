@@ -1050,12 +1050,16 @@ impl Cpu {
     #[inline(always)]
     fn add_sp<B: Bus>(&mut self, bus: &mut B) -> usize {
         let sp = self.sp;
-        let rhs = self.fetch(bus) as i8 as i16;
-        let (result, carry) = sp.overflowing_add_signed(rhs);
+        let offset = self.fetch(bus);
+        let rhs = offset as i8 as i16;
+        let result = sp.wrapping_add_signed(rhs);
         self.sp = result;
+        // flags are actually based on unsigned add of lo byte of sp
+        let lo = sp as u8;
+        let (result, carry) = lo.overflowing_add(offset);
         self.set_flag(Flag::Zero, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::HalfCarry, ((sp ^ result ^ (rhs as u16)) & 0x10) != 0);
+        self.set_flag(Flag::HalfCarry, ((lo ^ result ^ offset) & 0x10) != 0);
         self.set_flag(Flag::Carry, carry);
         16
     }
@@ -1075,15 +1079,16 @@ impl Cpu {
     #[inline(always)]
     fn load_sp_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
         let sp = self.sp;
-        let rhs = self.fetch(bus) as i8 as i16;
-        let (addr, carry) = sp.overflowing_add_signed(rhs);
-        let lo = bus.read(addr);
-        let hi = bus.read(addr.wrapping_add(1));
-        let result = u16::from_le_bytes([lo, hi]);
+        let offset = self.fetch(bus);
+        let rhs = offset as i8 as i16;
+        let result = sp.wrapping_add_signed(rhs);
         self.set_wide_register(WideRegister::HL, result);
+        // flags are actually based on unsigned add of lo byte of sp
+        let lo = sp as u8;
+        let (result, carry) = lo.overflowing_add(offset);
         self.set_flag(Flag::Zero, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::HalfCarry, ((sp ^ addr ^ (rhs as u16)) & 0x10) != 0);
+        self.set_flag(Flag::HalfCarry, ((lo ^ result ^ offset) & 0x10) != 0);
         self.set_flag(Flag::Carry, carry);
         12
     }
