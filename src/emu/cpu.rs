@@ -565,7 +565,6 @@ impl Cpu {
         }
         self.set_register(Register::A, result);
         self.set_flag(Flag::Zero, result == 0x00);
-        self.set_flag(Flag::Negative, false);
         // TODO should I be reseting H?
         self.set_flag(Flag::HalfCarry, false);
         // TODO Do I always do this?

@@ -190,12 +190,12 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             0xA000..=0xBFFF => self.mbc.read(addr),
             // WRAM
             0xC000..=0xCFFF => self.wram[0][(addr - 0xC000) as usize],
-            0xD000..=0xDFFF if *self.svbk < 2 => self.wram[0][(addr - 0xD000) as usize],
+            0xD000..=0xDFFF if *self.svbk < 2 => self.wram[1][(addr - 0xD000) as usize],
             0xD000..=0xDFFF => self.wram[*self.svbk as usize][(addr - 0xD000) as usize],
             // shadow area
             0xE000..=0xEFFF => self.wram[0][(addr - 0xE000) as usize],
-            0xF000..=0xFDFF if *self.svbk < 2 => self.wram[0][(addr - 0xF000) as usize],
-            0xF000..=0xFDFF => self.wram[0][(addr - 0xF000) as usize],
+            0xF000..=0xFDFF if *self.svbk < 2 => self.wram[1][(addr - 0xF000) as usize],
+            0xF000..=0xFDFF => self.wram[*self.svbk as usize][(addr - 0xF000) as usize],
             // OAM
             0xFE00..=0xFE9F => <Ppu as BusDevice<PpuView>>::read(self.ppu, addr),
             // reserved
@@ -232,12 +232,12 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             0xA000..=0xBFFF => self.mbc.write(addr, value),
             // WRAM
             0xC000..=0xCFFF => self.wram[0][(addr - 0xC000) as usize] = value,
-            0xD000..=0xDFFF if *self.svbk < 2 => self.wram[0][(addr - 0xD000) as usize] = value,
+            0xD000..=0xDFFF if *self.svbk < 2 => self.wram[1][(addr - 0xD000) as usize] = value,
             0xD000..=0xDFFF => self.wram[*self.svbk as usize][(addr - 0xD000) as usize] = value,
             // shadow area
             0xE000..=0xEFFF => self.wram[0][(addr - 0xE000) as usize] = value,
-            0xF000..=0xFDFF if *self.svbk < 2 => self.wram[0][(addr - 0xF000) as usize] = value,
-            0xF000..=0xFDFF => self.wram[0][(addr - 0xF000) as usize] = value,
+            0xF000..=0xFDFF if *self.svbk < 2 => self.wram[1][(addr - 0xF000) as usize] = value,
+            0xF000..=0xFDFF => self.wram[*self.svbk as usize][(addr - 0xF000) as usize] = value,
             // OAM
             0xFE00..=0xFE9F => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
             // reserved
