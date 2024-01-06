@@ -1,4 +1,4 @@
-use sdl2::libc::rand;
+use sdl2::libc;
 
 use super::bus::{Bus, BusDevice, Port};
 
@@ -95,7 +95,7 @@ impl Ppu {
             let lo = self.chr_data[0][chr_data_offset + chr_y];
             let hi = self.chr_data[0][chr_data_offset + chr_y + 1];
             for i in 0..8 {
-                // TODO: so janky
+                // TODO: so janky, also need to do palette lookup
                 let lo = (lo & (0x80 >> i)) != 0;
                 let hi = (hi & (0x80 >> i)) != 0;
                 line[dot + i] = match (lo, hi) {
@@ -116,13 +116,13 @@ impl<B: Bus> BusDevice<B> for Ppu {
     fn reset(&mut self, _bus: &mut B) {
         // TODO: use real random API
         for b in self.chr_data[0].iter_mut() {
-            *b = unsafe { rand() as u8 };
+            *b = unsafe { libc::rand() as u8 };
         }
         for b in self.bg_data1[0].iter_mut() {
-            *b = unsafe { rand() as u8 };
+            *b = unsafe { libc::rand() as u8 };
         }
         for b in self.bg_data2[0].iter_mut() {
-            *b = unsafe { rand() as u8 };
+            *b = unsafe { libc::rand() as u8 };
         }
 
         self.dot = 0;

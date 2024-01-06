@@ -243,6 +243,8 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             // reserved
             0xFEA0..=0xFEFF => {}
             // Port::P1..0xFF07= ports
+            // TODO hack
+            Port::SB => print!("{}", value as char),
             Port::IF => *self.iflags = value,
             // PPU IO ports
             Port::LCDC..=Port::WX => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),

@@ -15,7 +15,7 @@ use std::{
 use clap::Parser;
 use gb23::emu::{
     cpu::{Flag, WideRegister},
-    mbc::null::Null,
+    mbc::mbc0::Mbc0,
     Emu,
 };
 use rustyline::{error::ReadlineError, Config, DefaultEditor};
@@ -96,7 +96,7 @@ fn main_real(args: Args) -> Result<(), String> {
         .create_texture_streaming(PixelFormatEnum::RGBA8888, 256, 256)
         .map_err(|e| format!("failed to create texture: {e}"))?;
 
-    let mbc = Null::new(rom_data, Vec::new());
+    let mbc = Mbc0::new(rom_data, Vec::new());
     let mut emu = Emu::new(bios_data, mbc);
     emu.reset();
 

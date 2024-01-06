@@ -138,7 +138,7 @@ impl Cpu {
         match reg {
             WideRegister::PC => self.pc = value,
             WideRegister::SP => self.sp = value,
-            WideRegister::AF => self.af = value.to_le_bytes(),
+            WideRegister::AF => self.af = (value & 0xFFF0).to_le_bytes(),
             WideRegister::BC => self.bc = value.to_le_bytes(),
             WideRegister::DE => self.de = value.to_le_bytes(),
             WideRegister::HL => self.hl = value.to_le_bytes(),
@@ -241,12 +241,11 @@ impl Cpu {
 
     #[inline(always)]
     fn rl_value(&mut self, value: u8) -> u8 {
-        let carry = (value & 0x80) >> 7;
         let result = (value << 1) | if self.flag(Flag::Carry) { 0x01 } else { 0x00 };
         self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::HalfCarry, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::Carry, carry != 0);
+        self.set_flag(Flag::Carry, (value & 0x80) != 0);
         result
     }
 
@@ -297,12 +296,11 @@ impl Cpu {
 
     #[inline(always)]
     fn rr_value(&mut self, value: u8) -> u8 {
-        let carry = (value & 0x01) << 7;
         let result = (value >> 1) | if self.flag(Flag::Carry) { 0x80 } else { 0x00 };
         self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::HalfCarry, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::Carry, carry != 0);
+        self.set_flag(Flag::Carry, (value & 0x01) != 0);
         result
     }
 
@@ -361,12 +359,11 @@ impl Cpu {
 
     #[inline(always)]
     fn sla_value(&mut self, value: u8) -> u8 {
-        let carry = value & 0x80;
         let result = value << 1;
         self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::HalfCarry, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::Carry, carry != 0);
+        self.set_flag(Flag::Carry, (value & 0x80) != 0);
         result
     }
 
@@ -393,7 +390,7 @@ impl Cpu {
         self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::HalfCarry, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::Carry, false);
+        self.set_flag(Flag::Carry, (value & 0x01) != 0);
         result as u8
     }
 
@@ -420,7 +417,7 @@ impl Cpu {
         self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::HalfCarry, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::Carry, false);
+        self.set_flag(Flag::Carry, (value & 0x01) != 0);
         result
     }
 
@@ -456,13 +453,13 @@ impl Cpu {
 
     #[inline(always)]
     fn add_wide(&mut self, reg: WideRegister) -> usize {
-        let hl = u16::from_le_bytes(self.hl) as u32;
-        let rhs = self.wide_register(reg) as u32;
-        let result = hl.wrapping_add(rhs);
-        self.hl = (result as u16).to_le_bytes();
+        let hl = self.wide_register(WideRegister::HL);
+        let rhs = self.wide_register(reg);
+        let (result, carry) = hl.overflowing_add(rhs);
+        self.set_wide_register(WideRegister::HL, hl);
         self.set_flag(Flag::HalfCarry, ((hl ^ result ^ rhs) & 0x1000) != 0);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(Flag::Carry, result > 0xFFFF);
+        self.set_flag(Flag::Carry, carry);
         8
     }
 
@@ -548,8 +545,32 @@ impl Cpu {
 
     #[inline(always)]
     fn daa(&mut self) -> usize {
-        unimplemented!("DAA");
-        // 4
+        let value = self.register(Register::A);
+        let mut result = value;
+        if self.flag(Flag::Negative) {
+            if self.flag(Flag::HalfCarry) {
+                result = result.wrapping_sub(0x06);
+            }
+            if self.flag(Flag::Carry) {
+                result = result.wrapping_sub(0x60);
+            }
+        } else {
+            if ((value & 0x0F) > 0x09) || self.flag(Flag::HalfCarry) {
+                result = result.wrapping_add(0x06);
+            }
+            if (value > 0x99) || self.flag(Flag::Carry) {
+                result = result.wrapping_add(0x60);
+                self.set_flag(Flag::Carry, true);
+            }
+        }
+        self.set_register(Register::A, result);
+        self.set_flag(Flag::Zero, result == 0x00);
+        self.set_flag(Flag::Negative, false);
+        // TODO should I be reseting H?
+        self.set_flag(Flag::HalfCarry, false);
+        // TODO Do I always do this?
+        // self.set_flag(Flag::Carry, self.flag(Flag::Carry) || (value > 0x99));
+        4
     }
 
     #[inline(always)]
@@ -616,7 +637,7 @@ impl Cpu {
         let value = bus.read(addr);
         let result = value.wrapping_add(1);
         bus.write(addr, result);
-        self.set_flag(Flag::Zero, value == 0x00);
+        self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::Negative, false);
         self.set_flag(Flag::HalfCarry, ((result ^ value) & 0x10) != 0);
         12
@@ -628,7 +649,7 @@ impl Cpu {
         let value = bus.read(addr);
         let result = value.wrapping_sub(1);
         bus.write(addr, result);
-        self.set_flag(Flag::Zero, value == 0x00);
+        self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::Negative, true);
         self.set_flag(Flag::HalfCarry, ((result ^ value) & 0x10) != 0);
         12
@@ -849,9 +870,9 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn cp_value(&mut self, value: u8, carry: bool) {
+    fn compare_value(&mut self, value: u8) {
         let a = self.register(Register::A);
-        let (result, carry) = a.borrowing_sub(value, carry);
+        let (result, carry) = a.overflowing_sub(value);
         self.set_flag(Flag::Zero, result == 0x00);
         self.set_flag(Flag::Negative, true);
         self.set_flag(Flag::HalfCarry, ((a ^ value ^ result) & 0x10) != 0);
@@ -861,7 +882,7 @@ impl Cpu {
     #[inline(always)]
     fn compare(&mut self, reg: Register) -> usize {
         let value = self.register(reg);
-        self.cp_value(value, false);
+        self.compare_value(value);
         4
     }
 
@@ -869,14 +890,14 @@ impl Cpu {
     fn compare_hl_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
         let addr = self.wide_register(WideRegister::HL);
         let value = bus.read(addr);
-        self.cp_value(value, false);
+        self.compare_value(value);
         8
     }
 
     #[inline(always)]
     fn compare_immediate<B: Bus>(&mut self, bus: &mut B) -> usize {
         let value = self.fetch(bus);
-        self.cp_value(value, false);
+        self.compare_value(value);
         8
     }
 
@@ -911,6 +932,7 @@ impl Cpu {
         if met {
             self.jmp(bus)
         } else {
+            self.fetch_wide(bus);
             12
         }
     }
@@ -934,6 +956,7 @@ impl Cpu {
         if met {
             self.call(bus)
         } else {
+            self.fetch_wide(bus);
             12
         }
     }
@@ -1033,10 +1056,7 @@ impl Cpu {
         self.sp = result;
         self.set_flag(Flag::Zero, false);
         self.set_flag(Flag::Negative, false);
-        self.set_flag(
-            Flag::HalfCarry,
-            ((sp ^ result ^ (rhs as u16)) & 0x1000) != 0,
-        );
+        self.set_flag(Flag::HalfCarry, ((sp ^ result ^ (rhs as u16)) & 0x10) != 0);
         self.set_flag(Flag::Carry, carry);
         16
     }
@@ -1051,6 +1071,22 @@ impl Cpu {
     fn di(&mut self) -> usize {
         self.ime = false;
         4
+    }
+
+    #[inline(always)]
+    fn load_sp_indirect<B: Bus>(&mut self, bus: &mut B) -> usize {
+        let sp = self.sp;
+        let rhs = self.fetch(bus) as i8 as i16;
+        let (addr, carry) = sp.overflowing_add_signed(rhs);
+        let lo = bus.read(addr);
+        let hi = bus.read(addr.wrapping_add(1));
+        let result = u16::from_le_bytes([lo, hi]);
+        self.set_wide_register(WideRegister::HL, result);
+        self.set_flag(Flag::Zero, false);
+        self.set_flag(Flag::Negative, false);
+        self.set_flag(Flag::HalfCarry, ((sp ^ addr ^ (rhs as u16)) & 0x10) != 0);
+        self.set_flag(Flag::Carry, carry);
+        12
     }
 
     #[inline(always)]
@@ -1741,7 +1777,7 @@ impl<B: Bus> BusDevice<B> for Cpu {
             0xF5 => self.push(bus, WideRegister::AF),
             0xF6 => self.or_immediate(bus),
             0xF7 => self.rst(bus, 0x0030),
-            0xF8 => 4,
+            0xF8 => self.load_sp_indirect(bus),
             0xF9 => self.copy_wide(WideRegister::SP, WideRegister::HL),
             0xFA => self.load_indirect(bus),
             0xFB => self.ei(),

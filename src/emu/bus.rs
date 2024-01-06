@@ -2,6 +2,8 @@ pub enum Port {}
 
 impl Port {
     pub const P1: u16 = 0xFF00;
+    pub const SB: u16 = 0xFF01;
+    pub const SC: u16 = 0xFF02;
     pub const IF: u16 = 0xFF0F;
     pub const LCDC: u16 = 0xFF40;
     pub const STAT: u16 = 0xFF41;
