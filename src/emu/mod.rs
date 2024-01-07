@@ -292,26 +292,22 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             0xFE00..=0xFE9F => <Ppu as BusDevice<PpuView>>::read(self.ppu, addr),
             // reserved
             0xFEA0..=0xFEFF => 0xFF,
-            Port::P1 => *self.p1,
-            Port::SB => todo!(),
+            Port::P1 => *self.p1 | 0x03, // TODO: active low  input
+            Port::SB => 0x00,            //todo!(),
             Port::SC => *self.sc,
-            0xFF03 => 0xFF,
             Port::DIV => *self.div,
             Port::TIMA => *self.tima,
             Port::TMA => *self.tma,
             Port::TAC => *self.tac,
             Port::IF => *self.iflags,
-            // PPU IO ports
-            Port::LCDC..=Port::WX => <Ppu as BusDevice<PpuView>>::read(self.ppu, addr),
-            // 0xFF4D => // KEY1 (cpu speed switch)
+            Port::KEY1 => todo!(),
             Port::BIOS => *self.bios,
-            // more PPU IO ports
-            Port::VBK | Port::HMDA1..=Port::HMDA5 => {
-                <Ppu as BusDevice<PpuView>>::read(self.ppu, addr)
-            }
+            // PPU IO ports
+            Port::LCDC..=Port::WX
+            | Port::VBK
+            | Port::HMDA1..=Port::HMDA5
+            | Port::BCPS..=Port::OCPD => <Ppu as BusDevice<PpuView>>::read(self.ppu, addr),
             // 0xFF56 => // IR port
-            // even more PPU IO ports
-            Port::BCPS..=Port::OCPD => <Ppu as BusDevice<PpuView>>::read(self.ppu, addr),
             Port::SVBK => *self.svbk,
             // HRAM
             0xFF80..=0xFFFE => self.hram[(addr - 0xFF80) as usize],
@@ -340,26 +336,22 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             0xFE00..=0xFE9F => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
             // reserved
             0xFEA0..=0xFEFF => {}
-            Port::P1 => *self.p1 = value & 0x3F,
+            Port::P1 => *self.p1 = (value & 0x3F) | (*self.p1 & 0x0F),
             Port::SB => eprint!("{}", value as char),
             Port::SC => *self.sc = value & 0x03,
-            0xFF03 => {}
             Port::DIV => *self.div = 0,
             Port::TIMA => *self.tima = value,
             Port::TMA => *self.tma = value,
             Port::TAC => *self.tac = value & 0x07,
             Port::IF => *self.iflags = value & 0x1F,
-            // PPU IO ports
-            Port::LCDC..=Port::WX => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
-            // 0xFF4D => // KEY1 (cpu speed switch)
+            Port::KEY1 => todo!(),
             Port::BIOS => *self.bios = value,
-            // more PPU IO ports
-            Port::VBK | Port::HMDA1..=Port::HMDA5 => {
-                <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value)
-            }
+            // PPU IO ports
+            Port::LCDC..=Port::WX
+            | Port::VBK
+            | Port::HMDA1..=Port::HMDA5
+            | Port::BCPS..=Port::OCPD => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
             // 0xFF56 => // IR port
-            // even more PPU IO ports
-            Port::BCPS..=Port::OCPD => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
             Port::SVBK => *self.svbk = value & 0x07,
             // HRAM
             0xFF80..=0xFFFE => self.hram[(addr - 0xFF80) as usize] = value,

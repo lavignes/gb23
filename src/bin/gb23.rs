@@ -15,7 +15,7 @@ use std::{
 use clap::Parser;
 use gb23::emu::{
     cpu::{Flag, WideRegister},
-    mbc::{mbc0::Mbc0, mbc1::Mbc1},
+    mbc::mbc0::Mbc0,
     Emu,
 };
 use rustyline::{error::ReadlineError, Config, DefaultEditor};
@@ -97,7 +97,7 @@ fn main_real(args: Args) -> Result<(), String> {
         .map_err(|e| format!("failed to create texture: {e}"))?;
 
     let mut sram = vec![0; 8192 * 4];
-    let mbc = Mbc1::new(&rom, &mut sram);
+    let mbc = Mbc0::new(&rom, &mut sram);
     let mut emu = Emu::new(bios_data, mbc);
     emu.reset();
 

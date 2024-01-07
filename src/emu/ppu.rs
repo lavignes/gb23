@@ -214,7 +214,6 @@ impl<B: Bus> BusDevice<B> for Ppu {
                 self.stat |= 0x03;
                 // if LYC interrupt enabled, set the stat flag
                 if (self.stat & 0b000_0100) != 0 {
-                    // TODO: should probably expose direct access to IF on the bus
                     let iflags = bus.read(Port::IF);
                     bus.write(Port::IF, iflags | 0x02);
                 }
