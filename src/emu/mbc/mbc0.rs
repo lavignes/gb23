@@ -1,17 +1,17 @@
 use crate::emu::bus::{Bus, BusDevice};
 
-pub struct Mbc0 {
-    rom: Vec<u8>,
-    sram: Vec<u8>,
+pub struct Mbc0<'a> {
+    rom: &'a [u8],
+    sram: &'a mut [u8],
 }
 
-impl Mbc0 {
-    pub fn new(rom: Vec<u8>, sram: Vec<u8>) -> Self {
+impl<'a> Mbc0<'a> {
+    pub fn new(rom: &'a [u8], sram: &'a mut [u8]) -> Self {
         Self { rom, sram }
     }
 }
 
-impl<B: Bus> BusDevice<B> for Mbc0 {
+impl<'a, B: Bus> BusDevice<B> for Mbc0<'a> {
     fn reset(&mut self, _bus: &mut B) {}
 
     fn read(&mut self, addr: u16) -> u8 {

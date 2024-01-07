@@ -1,5 +1,3 @@
-use std::{io, mem};
-
 use self::{
     bus::{Bus, BusDevice, Port},
     cpu::Cpu,
@@ -24,7 +22,16 @@ pub struct Emu<M, P> {
     iflags: u8,
     bios: u8,
     svbk: u8,
+    p1: u8,
+    sc: u8,
+    div: u8,
+    tima: u8,
+    tma: u8,
+    tac: u8,
     ie: u8,
+
+    div_counter: usize,
+    tima_counter: usize,
 }
 
 impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
@@ -44,7 +51,15 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
             iflags: 0,
             bios: 0,
             svbk: 0,
+            p1: 0,
+            sc: 0,
+            div: 0,
+            tima: 0,
+            tma: 0,
+            tac: 0,
             ie: 0,
+            div_counter: 0,
+            tima_counter: 0,
         }
     }
 
@@ -60,6 +75,12 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
             ref mut iflags,
             ref mut bios,
             ref mut svbk,
+            ref mut p1,
+            ref mut sc,
+            ref mut div,
+            ref mut tima,
+            ref mut tma,
+            ref mut tac,
             ref mut ie,
             ..
         } = self;
@@ -72,6 +93,12 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
             iflags,
             bios,
             svbk,
+            p1,
+            sc,
+            div,
+            tima,
+            tma,
+            tac,
             ie,
         };
         cpu.reset(&mut cpu_view);
@@ -80,6 +107,12 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
         self.vblanked = false;
         self.iflags = 0;
         self.svbk = 0;
+        self.p1 = 0;
+        self.sc = 0;
+        self.div = 0;
+        self.tima = 0;
+        self.tma = 0;
+        self.tac = 0;
         self.ie = 0;
     }
 
@@ -95,6 +128,12 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
             ref mut iflags,
             ref mut bios,
             ref mut svbk,
+            ref mut p1,
+            ref mut sc,
+            ref mut div,
+            ref mut tima,
+            ref mut tma,
+            ref mut tac,
             ref mut ie,
             ..
         } = self;
@@ -107,6 +146,12 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
             iflags,
             bios,
             svbk,
+            p1,
+            sc,
+            div,
+            tima,
+            tma,
+            tac,
             ie,
         };
         let cycles = cpu.tick(&mut cpu_view);
@@ -118,6 +163,35 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
         }
         if vblank != 0 {
             self.vblanked = true;
+        }
+        // timers
+        self.div_counter += cycles;
+        // TODO: verify this value needs to be 1024 vs 256
+        if self.div_counter >= 1024 {
+            self.div_counter -= 1024;
+            self.div = self.div.wrapping_add(1);
+        }
+        if (self.tac & 0x04) != 0 {
+            self.tima_counter += cycles;
+            let freq = match self.tac & 0x03 {
+                0x00 => 4096,
+                0x01 => 262144,
+                0x02 => 65536,
+                0x03 => 16384,
+                _ => unreachable!(),
+            };
+            let period = 4194304 / freq;
+            while self.tima_counter >= period {
+                let (result, carry) = self.tima.overflowing_add(1);
+                // timer interrupt
+                if carry {
+                    self.iflags |= 0x04;
+                    self.tima = self.tma;
+                } else {
+                    self.tima = result;
+                }
+                self.tima_counter = self.tima_counter.wrapping_sub(period);
+            }
         }
         cycles
     }
@@ -146,7 +220,13 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
             ref mut iflags,
             ref mut bios,
             ref mut svbk,
+            ref mut p1,
             ref mut ie,
+            ref mut sc,
+            ref mut div,
+            ref mut tima,
+            ref mut tma,
+            ref mut tac,
             ..
         } = self;
         let mut cpu_view = CpuView {
@@ -158,6 +238,12 @@ impl<M: BusDevice<MbcView>> Emu<M, Ppu> {
             iflags,
             bios,
             svbk,
+            p1,
+            sc,
+            div,
+            tima,
+            tma,
+            tac,
             ie,
         };
         cpu_view.read(addr)
@@ -174,6 +260,12 @@ struct CpuView<'a, M, P> {
     iflags: &'a mut u8,
     bios: &'a mut u8,
     svbk: &'a mut u8,
+    p1: &'a mut u8,
+    sc: &'a mut u8,
+    div: &'a mut u8,
+    tima: &'a mut u8,
+    tma: &'a mut u8,
+    tac: &'a mut u8,
     ie: &'a mut u8,
 }
 
@@ -200,7 +292,14 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             0xFE00..=0xFE9F => <Ppu as BusDevice<PpuView>>::read(self.ppu, addr),
             // reserved
             0xFEA0..=0xFEFF => 0xFF,
-            // Port::P1..0xFF07= ports
+            Port::P1 => *self.p1,
+            Port::SB => todo!(),
+            Port::SC => *self.sc,
+            0xFF03 => 0xFF,
+            Port::DIV => *self.div,
+            Port::TIMA => *self.tima,
+            Port::TMA => *self.tma,
+            Port::TAC => *self.tac,
             Port::IF => *self.iflags,
             // PPU IO ports
             Port::LCDC..=Port::WX => <Ppu as BusDevice<PpuView>>::read(self.ppu, addr),
@@ -217,8 +316,7 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             // HRAM
             0xFF80..=0xFFFE => self.hram[(addr - 0xFF80) as usize],
             Port::IE => *self.ie,
-            // TODO
-            _ => 0xFF,
+            _ => 0xFF, // TODO
         }
     }
 
@@ -242,10 +340,15 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             0xFE00..=0xFE9F => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
             // reserved
             0xFEA0..=0xFEFF => {}
-            // Port::P1..0xFF07= ports
-            // TODO hack
+            Port::P1 => *self.p1 = value & 0x3F,
             Port::SB => eprint!("{}", value as char),
-            Port::IF => *self.iflags = value,
+            Port::SC => *self.sc = value & 0x03,
+            0xFF03 => {}
+            Port::DIV => *self.div = 0,
+            Port::TIMA => *self.tima = value,
+            Port::TMA => *self.tma = value,
+            Port::TAC => *self.tac = value & 0x07,
+            Port::IF => *self.iflags = value & 0x1F,
             // PPU IO ports
             Port::LCDC..=Port::WX => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
             // 0xFF4D => // KEY1 (cpu speed switch)
@@ -257,12 +360,11 @@ impl<'a, M: BusDevice<MbcView>> Bus for CpuView<'a, M, Ppu> {
             // 0xFF56 => // IR port
             // even more PPU IO ports
             Port::BCPS..=Port::OCPD => <Ppu as BusDevice<PpuView>>::write(self.ppu, addr, value),
-            Port::SVBK => *self.svbk = value,
+            Port::SVBK => *self.svbk = value & 0x07,
             // HRAM
             0xFF80..=0xFFFE => self.hram[(addr - 0xFF80) as usize] = value,
             Port::IE => *self.ie = value,
-            // TODO
-            _ => {}
+            _ => {} // TODO
         }
     }
 }

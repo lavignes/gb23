@@ -15,7 +15,7 @@ use std::{
 use clap::Parser;
 use gb23::emu::{
     cpu::{Flag, WideRegister},
-    mbc::mbc0::Mbc0,
+    mbc::{mbc0::Mbc0, mbc1::Mbc1},
     Emu,
 };
 use rustyline::{error::ReadlineError, Config, DefaultEditor};
@@ -60,10 +60,10 @@ fn main() -> ExitCode {
 }
 
 fn main_real(args: Args) -> Result<(), String> {
-    let mut rom_data = Vec::new();
+    let mut rom = Vec::new();
     File::open(&args.rom)
         .map_err(|e| format!("failed to open ROM file: {e}"))?
-        .read_to_end(&mut rom_data)
+        .read_to_end(&mut rom)
         .map_err(|e| format!("failed to read ROM file: {e}"))?;
     let mut bios_data = Vec::new();
     if let Some(bios) = args.bios {
@@ -96,7 +96,8 @@ fn main_real(args: Args) -> Result<(), String> {
         .create_texture_streaming(PixelFormatEnum::RGBA8888, 256, 256)
         .map_err(|e| format!("failed to create texture: {e}"))?;
 
-    let mbc = Mbc0::new(rom_data, Vec::new());
+    let mut sram = vec![0; 8192 * 4];
+    let mbc = Mbc0::new(&rom, &mut sram);
     let mut emu = Emu::new(bios_data, mbc);
     emu.reset();
 

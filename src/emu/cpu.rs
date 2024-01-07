@@ -11,7 +11,6 @@ pub struct Cpu {
     de: [u8; 2],
     hl: [u8; 2],
 
-    irq: bool,
     ime: bool,
     stopped: bool,
     halted: bool,
@@ -1482,7 +1481,6 @@ impl Cpu {
 impl<B: Bus> BusDevice<B> for Cpu {
     fn reset(&mut self, _bus: &mut B) {
         self.pc = 0x0000;
-        self.irq = false;
         self.ime = false;
         self.stopped = false;
         self.halted = false;
@@ -1494,23 +1492,24 @@ impl<B: Bus> BusDevice<B> for Cpu {
             return 4;
         }
         // handle interrupts
-        if self.irq && self.ime {
+        if self.ime {
+            // TODO maybe reduce bus reads by having an irq flag indicating pending ints
             let iflags = bus.read(Port::IF);
             let imasked = bus.read(Port::IE) & iflags;
             if imasked != 0 {
-                if (imasked & 0x01) != 0x00 {
+                if (imasked & 0x01) != 0 {
                     self.rst(bus, 0x0040);
                     bus.write(Port::IF, iflags ^ 0x01);
-                } else if (imasked & 0x02) != 0x00 {
+                } else if (imasked & 0x02) != 0 {
                     self.rst(bus, 0x0048);
                     bus.write(Port::IF, iflags ^ 0x02);
-                } else if (imasked & 0x04) != 0x00 {
+                } else if (imasked & 0x04) != 0 {
                     self.rst(bus, 0x0050);
                     bus.write(Port::IF, iflags ^ 0x04);
-                } else if (imasked & 0x08) != 0x00 {
+                } else if (imasked & 0x08) != 0 {
                     self.rst(bus, 0x0058);
                     bus.write(Port::IF, iflags ^ 0x08);
-                } else if (imasked & 0x10) != 0x00 {
+                } else if (imasked & 0x10) != 0 {
                     self.rst(bus, 0x0060);
                     bus.write(Port::IF, iflags ^ 0x10);
                 }
