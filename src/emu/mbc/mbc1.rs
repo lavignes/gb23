@@ -6,6 +6,7 @@ pub struct Mbc1<'a> {
     rom_bank: u8,
     sram_bank: u8,
     bank_mode: u8,
+    sram_enable: bool,
 }
 
 impl<'a> Mbc1<'a> {
@@ -16,6 +17,7 @@ impl<'a> Mbc1<'a> {
             rom_bank: 0,
             sram_bank: 0,
             bank_mode: 0,
+            sram_enable: false,
         }
     }
 }
@@ -25,6 +27,7 @@ impl<'a, B: Bus> BusDevice<B> for Mbc1<'a> {
         self.rom_bank = 0;
         self.sram_bank = 0;
         self.bank_mode = 0;
+        self.sram_enable = false;
     }
 
     fn read(&mut self, addr: u16) -> u8 {
@@ -38,8 +41,9 @@ impl<'a, B: Bus> BusDevice<B> for Mbc1<'a> {
 
     fn write(&mut self, addr: u16, value: u8) {
         match addr {
+            0x0000..=0x1FFF => self.sram_enable = value != 0,
             0x2000..=0x3FFF => {
-                let lo = value & 0x15;
+                let lo = value & 0x1F;
                 // quirk to translate bank 0 (and some others) one bank up
                 let lo = match lo {
                     0x00 => 0x01,
@@ -65,7 +69,9 @@ impl<'a, B: Bus> BusDevice<B> for Mbc1<'a> {
                 }
             }
             0x6000..=0x7FFF => self.bank_mode = value & 0x01,
-            0xA000..=0xBFFF => self.sram[self.sram_bank as usize][(addr - 0xA000) as usize] = value,
+            0xA000..=0xBFFF if self.sram_enable => {
+                self.sram[self.sram_bank as usize][(addr - 0xA000) as usize] = value
+            }
             _ => {}
         }
     }

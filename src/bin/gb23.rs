@@ -14,12 +14,13 @@ use std::{
 
 use clap::Parser;
 use gb23::emu::{
+    bus::{Bus, BusDevice, Port},
     cpu::{Flag, WideRegister},
-    mbc::mbc0::Mbc0,
+    mbc::{mbc0::Mbc0, mbc1::Mbc1},
     Emu,
 };
 use rustyline::{error::ReadlineError, Config, DefaultEditor};
-use sdl2::{pixels::PixelFormatEnum, rect::Rect};
+use sdl2::{keyboard::Scancode, pixels::PixelFormatEnum, rect::Rect, EventPump};
 use tracing::Level;
 
 #[derive(Parser)]
@@ -97,8 +98,8 @@ fn main_real(args: Args) -> Result<(), String> {
         .map_err(|e| format!("failed to create texture: {e}"))?;
 
     let mut sram = vec![0; 8192 * 4];
-    let mbc = Mbc0::new(&rom, &mut sram);
-    let mut emu = Emu::new(bios_data, mbc);
+    let mbc = Mbc1::new(&rom, &mut sram);
+    let mut emu = Emu::new(bios_data, mbc, Input::new(event_pump));
     emu.reset();
 
     let debug_mode = Arc::new(AtomicBool::new(args.debug));
@@ -218,4 +219,87 @@ fn main_real(args: Args) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+struct Input {
+    event_pump: EventPump,
+    p1: u8,
+    counter: usize,
+}
+
+impl Input {
+    fn new(event_pump: EventPump) -> Self {
+        Self {
+            event_pump,
+            p1: 0x3F,
+            counter: 0,
+        }
+    }
+}
+
+impl<B: Bus> BusDevice<B> for Input {
+    fn reset(&mut self, _bus: &mut B) {
+        self.p1 = 0x3F;
+        self.counter = 0;
+    }
+
+    fn read(&mut self, addr: u16) -> u8 {
+        match addr {
+            Port::P1 => self.p1,
+            _ => unreachable!(),
+        }
+    }
+
+    fn write(&mut self, addr: u16, value: u8) {
+        match addr {
+            Port::P1 => {
+                if (value & 0x30) == 0x20 {
+                    let keyboard = self.event_pump.keyboard_state();
+                    self.p1 |= 0x0F;
+                    if keyboard.is_scancode_pressed(Scancode::Down) {
+                        self.p1 &= 0x27;
+                    }
+                    if keyboard.is_scancode_pressed(Scancode::Up) {
+                        self.p1 &= 0x2B;
+                    }
+                    if keyboard.is_scancode_pressed(Scancode::Left) {
+                        self.p1 &= 0x2D;
+                    }
+                    if keyboard.is_scancode_pressed(Scancode::Right) {
+                        self.p1 &= 0x2E;
+                    }
+                    return;
+                }
+                if (value & 0x30) == 0x10 {
+                    let keyboard = self.event_pump.keyboard_state();
+                    self.p1 |= 0x0F;
+                    if keyboard.is_scancode_pressed(Scancode::Return) {
+                        self.p1 &= 0x17;
+                    }
+                    if keyboard.is_scancode_pressed(Scancode::RShift) {
+                        self.p1 &= 0x1B;
+                    }
+                    if keyboard.is_scancode_pressed(Scancode::Z) {
+                        self.p1 &= 0x1D;
+                    }
+                    if keyboard.is_scancode_pressed(Scancode::X) {
+                        self.p1 &= 0x1E;
+                    }
+                    return;
+                }
+                self.p1 |= 0x3F;
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn tick(&mut self, _bus: &mut B) -> usize {
+        self.counter += 1;
+        // we read the keyboard around every frame
+        if self.counter > (4194304 / 60) {
+            self.counter = 0;
+            self.event_pump.pump_events();
+        }
+        0
+    }
 }
