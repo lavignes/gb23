@@ -117,7 +117,6 @@ impl Ppu {
         // reset z-buffer
         self.z_buffer[self.ly as usize].fill(0);
         {
-            // we update the lcd per line to properly emulate raster-effects
             let bg_data = if (self.lcdc & 0x08) == 0 {
                 &self.bg_data1
             } else {
@@ -193,6 +192,46 @@ impl Ppu {
                     if z > self.z_buffer[self.ly as usize][dot] {
                         line[dot] = color;
                     }
+                }
+            }
+        }
+        // window?
+        if (self.lcdc & 0x20) != 0 {
+            if self.ly < self.wy {
+                return;
+            }
+            // wx of 7 means its on the left of the screen
+            if self.wx < 6 {
+                return;
+            }
+            let win_data = if (self.lcdc & 0x40) == 0 {
+                &self.bg_data1
+            } else {
+                &self.bg_data2
+            };
+            let win_y = (self.ly - self.wy) as usize;
+            let win_x = (self.wx as usize) - 6;
+            // offset into the 8 2bpp bytes on the current line (assuming no flip)
+            let chr_y = 2 * (win_y % 8);
+            for dot in win_x..160 {
+                let win_tile_idx = (dot / 8) + ((win_y / 8) * 32);
+                let chr_idx = win_data[0][win_tile_idx];
+                let attr = win_data[1][win_tile_idx];
+                let chr_data_offset = if (self.lcdc & 0x10) != 0 {
+                    chr_idx as usize * 16
+                } else {
+                    0x1000usize.wrapping_add_signed(chr_idx as i8 as isize * 16)
+                };
+                let chr_x = dot % 8;
+                let lo = self.chr_data[0][chr_data_offset + chr_y];
+                let hi = self.chr_data[0][chr_data_offset + chr_y + 1];
+                // TODO yuck
+                let bitlo = ((lo & ((0x80 >> chr_x) as u8)) != 0) as u8;
+                let bithi = ((hi & ((0x80 >> chr_x) as u8)) != 0) as u8;
+                let bits = (bithi << 1) | bitlo;
+                let (color, z) = self.bg_color(bits, attr);
+                if z > self.z_buffer[self.ly as usize][dot] {
+                    line[dot] = color;
                 }
             }
         }
