@@ -1487,15 +1487,17 @@ impl<B: Bus> BusDevice<B> for Cpu {
     }
 
     fn tick(&mut self, bus: &mut B) -> usize {
+        // TODO maybe reduce bus reads by having an irq flag indicating pending ints
+        let iflags = bus.read(Port::IF);
+        let imasked = bus.read(Port::IE) & iflags;
         if self.halted {
-            // TODO: exit halt state
-            return 4;
+            if imasked == 0 {
+                return 4;
+            }
+            self.halted = false;
         }
         // handle interrupts
         if self.ime {
-            // TODO maybe reduce bus reads by having an irq flag indicating pending ints
-            let iflags = bus.read(Port::IF);
-            let imasked = bus.read(Port::IE) & iflags;
             if imasked != 0 {
                 if (imasked & 0x01) != 0 {
                     self.rst(bus, 0x0040);

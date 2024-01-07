@@ -80,7 +80,7 @@ fn main_real(args: Args) -> Result<(), String> {
         .video()
         .map_err(|e| format!("failed to initialize SDL2 video: {e}"))?;
     let window = video
-        .window("gb23", 160 * 4, 144 * 4)
+        .window("gb23", 160 * 8, 144 * 8)
         .allow_highdpi()
         .position_centered()
         .build()
@@ -97,7 +97,7 @@ fn main_real(args: Args) -> Result<(), String> {
         .map_err(|e| format!("failed to create texture: {e}"))?;
 
     let mut sram = vec![0; 8192 * 4];
-    let mbc = Mbc0::new(&rom, &mut sram);
+    let mbc = Mbc1::new(&rom, &mut sram);
     let mut emu = Emu::new(bios_data, mbc);
     emu.reset();
 
