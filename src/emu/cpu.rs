@@ -627,6 +627,8 @@ impl Cpu {
     fn cpl(&mut self) -> usize {
         let a = self.register(Register::A);
         self.set_register(Register::A, !a);
+        self.set_flag(Flag::Negative, true);
+        self.set_flag(Flag::HalfCarry, true);
         4
     }
 
