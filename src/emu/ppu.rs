@@ -71,20 +71,21 @@ impl Ppu {
 
     fn bg_color(&self, bits: u8, attr: u8) -> (u32, u8) {
         // TODO: CGB BG priority
-        let index = match bits {
-            0 => (self.bgp & 0x03) >> 0,
-            1 => (self.bgp & 0x0C) >> 2,
-            2 => (self.bgp & 0x30) >> 4,
-            3 => (self.bgp & 0xC0) >> 6,
+        let (index, z) = match bits {
+            0 => ((self.bgp & 0x03) >> 0, 0x70),
+            1 => ((self.bgp & 0x0C) >> 2, 0x80),
+            2 => ((self.bgp & 0x30) >> 4, 0x80),
+            3 => ((self.bgp & 0xC0) >> 6, 0x80),
             _ => unreachable!(),
         };
-        match index {
-            0 => (0xFFFFFFFF, 0x7F),
-            1 => (0xAAAAAAFF, 0x7F),
-            2 => (0x555555FF, 0x7F),
-            3 => (0x000000FF, 0x7F),
+        let color = match index {
+            0 => 0xFFFFFFFF,
+            1 => 0xAAAAAAFF,
+            2 => 0x555555FF,
+            3 => 0x000000FF,
             _ => unreachable!(),
-        }
+        };
+        (color, z)
     }
 
     fn obj_color(&self, bits: u8, attr: u8) -> (u32, u8) {
@@ -103,7 +104,7 @@ impl Ppu {
             3 => (obp & 0xC0) >> 6,
             _ => unreachable!(),
         };
-        let z = if (attr & 0x80) == 0 { 0x80 } else { 0x01 };
+        let z = if (attr & 0x80) == 0 { 0x90 } else { 0x75 };
         match index {
             0 => (0xFFFFFFFF, z),
             1 => (0xAAAAAAFF, z),
@@ -123,8 +124,8 @@ impl Ppu {
                 &self.bg_data2
             };
             let bg_y = ((self.ly as usize) + (self.scy as usize)) % 256;
-            // offset into the 8 2bpp bytes on the current line (assuming no flip)
-            let chr_y = 2 * (bg_y % 8);
+            // we multiply by two because each line of pixles is 2 bytes
+            let chr_line_offset = 2 * (bg_y % 8);
             // TODO: This is a crappy but working implementation that
             // looks up and renders each dot one at a time.
             // A better impl would render in batches of 8 pixes
@@ -139,14 +140,15 @@ impl Ppu {
                     0x1000usize.wrapping_add_signed(chr_idx as i8 as isize * 16)
                 };
                 let chr_x = bg_x % 8;
-                let lo = self.chr_data[0][chr_data_offset + chr_y];
-                let hi = self.chr_data[0][chr_data_offset + chr_y + 1];
+                let lo = self.chr_data[0][chr_data_offset + chr_line_offset];
+                let hi = self.chr_data[0][chr_data_offset + chr_line_offset + 1];
                 // TODO yuck
                 let bitlo = ((lo & ((0x80 >> chr_x) as u8)) != 0) as u8;
                 let bithi = ((hi & ((0x80 >> chr_x) as u8)) != 0) as u8;
                 let bits = (bithi << 1) | bitlo;
                 let (color, z) = self.bg_color(bits, attr);
-                if z > self.z_buffer[self.ly as usize][dot] {
+                if z >= self.z_buffer[self.ly as usize][dot] {
+                    self.z_buffer[self.ly as usize][dot] = z;
                     line[dot] = color;
                 }
             }
@@ -158,29 +160,36 @@ impl Ppu {
             // on the current line and then iterate over them. the search only looks at Y
             // sprites offscreen in X still count against it
             for obj in self.objs.chunks(4) {
-                let y = obj[0] - 16;
-                let x = obj[1] - 8;
-                if (self.ly < y) || (self.ly >= (y + height)) {
+                // this is the OAM filter algorithm:
+                let y = obj[0];
+                if ((self.ly + 16) < y) || ((self.ly + height) >= y) {
                     continue;
                 }
+                // sprite origins are in the bottom right on gameboy
+                // we translate it to make the math simpler
+                let y = y.wrapping_sub(16);
                 let chr_idx = obj[2] as usize;
                 let attr = obj[3];
+                // y offset within the sprite intersecting with ly
+                let obj_y = self.ly.wrapping_sub(y) % height;
                 // y-flip
-                let chr_y = if (attr & 0x40) == 0 {
-                    2 * ((self.ly - y) as usize)
+                let chr_line_offset = if (attr & 0x40) == 0 {
+                    // we multiply by two because each line of pixles is 2 bytes
+                    2 * (obj_y as usize)
                 } else {
-                    2 * ((height as usize) - ((self.ly - y) as usize) - 1)
+                    2 * ((height as usize) - (obj_y as usize) - 1)
                 };
                 let chr_data_offset = chr_idx as usize * 16;
-                let mut lo = self.chr_data[0][chr_data_offset + chr_y];
-                let mut hi = self.chr_data[0][chr_data_offset + chr_y + 1];
+                let mut lo = self.chr_data[0][chr_data_offset + chr_line_offset];
+                let mut hi = self.chr_data[0][chr_data_offset + chr_line_offset + 1];
                 // x-flip
                 if (attr & 0x20) != 0 {
                     lo = lo.reverse_bits();
                     hi = hi.reverse_bits();
                 }
+                let x = obj[1].wrapping_sub(8) as usize;
                 for i in 0..8 {
-                    let dot = i + (x as usize);
+                    let dot = (i as usize).wrapping_add(x) % 256;
                     if dot >= 160 {
                         continue;
                     }
@@ -189,7 +198,9 @@ impl Ppu {
                     let bithi = ((hi & ((0x80 >> i) as u8)) != 0) as u8;
                     let bits = (bithi << 1) | bitlo;
                     let (color, z) = self.obj_color(bits, attr);
-                    if z > self.z_buffer[self.ly as usize][dot] {
+                    let z = z + 1; // TODO: hack this z is still bugged
+                    if z >= self.z_buffer[self.ly as usize][dot] {
+                        self.z_buffer[self.ly as usize][dot] = z;
                         line[dot] = color;
                     }
                 }
@@ -200,7 +211,8 @@ impl Ppu {
             if self.ly < self.wy {
                 return;
             }
-            // wx of 7 means its on the left of the screen
+            // The wx is 6 pixels to the left of the rendered window
+            // this is similar to how sprites have weird offsets
             if self.wx < 6 {
                 return;
             }
@@ -212,7 +224,7 @@ impl Ppu {
             let win_y = (self.ly - self.wy) as usize;
             let win_x = (self.wx as usize) - 6;
             // offset into the 8 2bpp bytes on the current line (assuming no flip)
-            let chr_y = 2 * (win_y % 8);
+            let chr_line_offset = 2 * (win_y % 8);
             for dot in win_x..160 {
                 let win_tile_idx = (dot / 8) + ((win_y / 8) * 32);
                 let chr_idx = win_data[0][win_tile_idx];
@@ -223,14 +235,15 @@ impl Ppu {
                     0x1000usize.wrapping_add_signed(chr_idx as i8 as isize * 16)
                 };
                 let chr_x = dot % 8;
-                let lo = self.chr_data[0][chr_data_offset + chr_y];
-                let hi = self.chr_data[0][chr_data_offset + chr_y + 1];
+                let lo = self.chr_data[0][chr_data_offset + chr_line_offset];
+                let hi = self.chr_data[0][chr_data_offset + chr_line_offset + 1];
                 // TODO yuck
                 let bitlo = ((lo & ((0x80 >> chr_x) as u8)) != 0) as u8;
                 let bithi = ((hi & ((0x80 >> chr_x) as u8)) != 0) as u8;
                 let bits = (bithi << 1) | bitlo;
                 let (color, z) = self.bg_color(bits, attr);
-                if z > self.z_buffer[self.ly as usize][dot] {
+                if z >= self.z_buffer[self.ly as usize][dot] {
+                    self.z_buffer[self.ly as usize][dot] = z;
                     line[dot] = color;
                 }
             }

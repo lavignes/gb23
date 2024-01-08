@@ -224,6 +224,10 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
         &self.lcd
     }
 
+    pub fn input_mut(&mut self) -> &mut I {
+        &mut self.input
+    }
+
     pub fn cpu(&self) -> &Cpu {
         &self.cpu
     }

@@ -156,17 +156,55 @@ fn main_real(args: Args) -> Result<(), String> {
                                 emu.tick();
                             }
                             "b" => {
-                                let addr = u16::from_str_radix(&parts[1], 16).unwrap();
-                                breakpoints.push(addr);
+                                if parts.len() > 1 {
+                                    if let Ok(addr) = u16::from_str_radix(&parts[1], 16) {
+                                        breakpoints.push(addr);
+                                        continue;
+                                    }
+                                }
+                                println!("?");
+                            }
+                            "d" => {
+                                if parts.len() > 1 {
+                                    if let Ok(n) = usize::from_str_radix(&parts[1], 10) {
+                                        if n < breakpoints.len() {
+                                            breakpoints.remove(n);
+                                            continue;
+                                        }
+                                    }
+                                }
+                                println!("?");
                             }
                             "c" => {
                                 debug_mode.store(false, Ordering::Relaxed);
                                 break;
                             }
                             "x" => {
-                                let addr = u16::from_str_radix(&parts[1], 16).unwrap();
-                                let value = emu.cpu_read(addr);
-                                println!("{value:02X}");
+                                if parts.len() > 1 {
+                                    if let Ok(addr) = u16::from_str_radix(&parts[1], 16) {
+                                        let value = emu.cpu_read(addr);
+                                        println!("{value:02X}");
+                                        continue;
+                                    }
+                                }
+                                println!("?");
+                            }
+                            "q" => {
+                                break 'da_loop;
+                            }
+                            "info" => {
+                                if parts.len() > 1 {
+                                    match parts[1].as_str() {
+                                        "b" => {
+                                            for (i, breakpoint) in breakpoints.iter().enumerate() {
+                                                println!("{i:03}: {breakpoint:04X}");
+                                            }
+                                        }
+                                        _ => println!("?"),
+                                    }
+                                    continue;
+                                }
+                                println!("?");
                             }
                             _ => println!("?"),
                         }
@@ -207,6 +245,9 @@ fn main_real(args: Args) -> Result<(), String> {
             canvas.present();
             frames += 1;
         }
+        if emu.input_mut().debug() {
+            debug_mode.store(true, Ordering::Relaxed);
+        }
         if now.duration_since(start) > Duration::from_secs(1) {
             let mhz = (cycles as f64) / 1_000_000.0;
             canvas
@@ -225,6 +266,7 @@ struct Input {
     event_pump: EventPump,
     p1: u8,
     counter: usize,
+    debug: bool,
 }
 
 impl Input {
@@ -233,7 +275,16 @@ impl Input {
             event_pump,
             p1: 0x3F,
             counter: 0,
+            debug: false,
         }
+    }
+
+    pub fn debug(&mut self) -> bool {
+        if self.debug {
+            self.debug = false;
+            return true;
+        }
+        false
     }
 }
 
@@ -299,6 +350,10 @@ impl<B: Bus> BusDevice<B> for Input {
         if self.counter > (4194304 / 60) {
             self.counter = 0;
             self.event_pump.pump_events();
+            let keyboard = self.event_pump.keyboard_state();
+            if keyboard.is_scancode_pressed(Scancode::F1) {
+                self.debug = true;
+            }
         }
         0
     }
