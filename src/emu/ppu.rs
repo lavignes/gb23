@@ -250,10 +250,30 @@ impl<B: Bus> BusDevice<B> for Ppu {
         for b in self.bg_data2[0].iter_mut() {
             *b = unsafe { libc::rand() as u8 };
         }
-        // TODO: reset more
         self.dot = 0;
         self.dma_counter = 0;
+        self.lcdc = 0;
+        self.stat = 0;
+        self.scy = 0;
+        self.scx = 0;
+        self.ly = 0;
+        self.lyc = 0;
+        self.dma = 0;
+        self.bgp = 0;
+        self.obp0 = 0;
+        self.obp1 = 0;
+        self.wy = 0;
+        self.wx = 0;
         self.vbk = 0;
+        self.hdma1 = 0;
+        self.hdma2 = 0;
+        self.hdma3 = 0;
+        self.hdma4 = 0;
+        self.hdma5 = 0;
+        self.bcps = 0;
+        self.bcpd = 0;
+        self.ocps = 0;
+        self.ocpd = 0;
     }
 
     fn read(&mut self, addr: u16) -> u8 {
