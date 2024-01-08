@@ -72,7 +72,7 @@ impl Ppu {
     fn bg_color(&self, bits: u8, attr: u8) -> (u32, u8) {
         // TODO: CGB BG priority
         let (index, z) = match bits {
-            0 => ((self.bgp & 0x03) >> 0, 0x80),
+            0 => ((self.bgp & 0x03) >> 0, 0x7F),
             1 => ((self.bgp & 0x0C) >> 2, 0x80),
             2 => ((self.bgp & 0x30) >> 4, 0x80),
             3 => ((self.bgp & 0xC0) >> 6, 0x80),
@@ -104,7 +104,7 @@ impl Ppu {
             3 => (obp & 0xC0) >> 6,
             _ => unreachable!(),
         };
-        let z = if (attr & 0x80) == 0 { 0x90 } else { 0x70 };
+        let z = if (attr & 0x80) == 0 { 0xFF } else { 0x7F };
         match index {
             0 => (0xFFFFFFFF, z),
             1 => (0xAAAAAAFF, z),
@@ -147,7 +147,7 @@ impl Ppu {
                 let bithi = ((hi & ((0x80 >> chr_x) as u8)) != 0) as u8;
                 let bits = (bithi << 1) | bitlo;
                 let (color, z) = self.bg_color(bits, attr);
-                if z > self.z_buffer[self.ly as usize][dot] {
+                if z >= self.z_buffer[self.ly as usize][dot] {
                     self.z_buffer[self.ly as usize][dot] = z;
                     line[dot] = color;
                 }
@@ -201,7 +201,7 @@ impl Ppu {
                     let bithi = ((hi & ((0x80 >> i) as u8)) != 0) as u8;
                     let bits = (bithi << 1) | bitlo;
                     let (color, z) = self.obj_color(bits, attr);
-                    if z > self.z_buffer[self.ly as usize][dot] {
+                    if z >= self.z_buffer[self.ly as usize][dot] {
                         self.z_buffer[self.ly as usize][dot] = z;
                         line[dot] = color;
                     }
@@ -213,9 +213,9 @@ impl Ppu {
             if self.ly < self.wy {
                 return;
             }
-            // The wx is 6 pixels to the left of the rendered window
+            // The wx is 7 pixels to the left of the rendered window
             // this is similar to how sprites have weird offsets
-            if self.wx < 6 {
+            if self.wx < 7 {
                 return;
             }
             let win_data = if (self.lcdc & 0x40) == 0 {
@@ -224,7 +224,7 @@ impl Ppu {
                 &self.bg_data2
             };
             let win_y = (self.ly - self.wy) as usize;
-            let win_x = (self.wx as usize) - 6;
+            let win_x = (self.wx as usize) - 7;
             // offset into the 8 2bpp bytes on the current line (assuming no flip)
             let chr_line_offset = 2 * (win_y % 8);
             for dot in win_x..160 {
@@ -246,7 +246,7 @@ impl Ppu {
                 let (color, z) = self.bg_color(bits, attr);
                 // window uses is always above bg layer
                 let z = z + 1;
-                if z > self.z_buffer[self.ly as usize][dot] {
+                if z >= self.z_buffer[self.ly as usize][dot] {
                     self.z_buffer[self.ly as usize][dot] = z;
                     line[dot] = color;
                 }
