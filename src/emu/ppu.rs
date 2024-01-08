@@ -159,6 +159,7 @@ impl Ppu {
             // TODO change this so we search OAM for the first 10 objs
             // on the current line and then iterate over them. the search only looks at Y
             // sprites offscreen in X still count against it
+            // Also want to sort them since sprite priority is based on lowest X coord
             for obj in self.objs.chunks(4) {
                 // this is the OAM filter algorithm:
                 let y = obj[0];

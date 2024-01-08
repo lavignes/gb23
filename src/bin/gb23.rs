@@ -20,7 +20,13 @@ use gb23::emu::{
     Emu,
 };
 use rustyline::{error::ReadlineError, Config, DefaultEditor};
-use sdl2::{keyboard::Scancode, pixels::PixelFormatEnum, rect::Rect, EventPump};
+use sdl2::{
+    audio::{AudioQueue, AudioSpec, AudioSpecDesired},
+    keyboard::Scancode,
+    pixels::PixelFormatEnum,
+    rect::Rect,
+    EventPump,
+};
 use tracing::Level;
 
 #[derive(Parser)]
@@ -80,6 +86,27 @@ fn main_real(args: Args) -> Result<(), String> {
     let video = sdl
         .video()
         .map_err(|e| format!("failed to initialize SDL2 video: {e}"))?;
+
+    let audio = sdl
+        .audio()
+        .map_err(|e| format!("failed to initialize SDL2 audio: {e}"))?;
+    let audio_queue: AudioQueue<f32> = audio
+        .open_queue(
+            None,
+            &AudioSpecDesired {
+                freq: Some(22050),
+                channels: Some(2),
+                samples: Some(512),
+            },
+        )
+        .map_err(|e| format!("failed to open audio device: {e}"))?;
+    let mut buf = Vec::new();
+    for i in 0..(4096 * 5) {
+        buf.push(((i as f32) * 0.05).sin());
+    }
+    audio_queue.queue_audio(&buf).unwrap();
+    audio_queue.resume();
+
     let window = video
         .window("gb23", 160 * 8, 144 * 8)
         .allow_highdpi()
@@ -248,6 +275,9 @@ fn main_real(args: Args) -> Result<(), String> {
         if emu.input_mut().debug() {
             debug_mode.store(true, Ordering::Relaxed);
         }
+        if emu.input_mut().escape() {
+            break 'da_loop;
+        }
         if now.duration_since(start) > Duration::from_secs(1) {
             let mhz = (cycles as f64) / 1_000_000.0;
             canvas
@@ -267,6 +297,7 @@ struct Input {
     p1: u8,
     counter: usize,
     debug: bool,
+    escape: bool,
 }
 
 impl Input {
@@ -276,6 +307,7 @@ impl Input {
             p1: 0x3F,
             counter: 0,
             debug: false,
+            escape: false,
         }
     }
 
@@ -285,6 +317,10 @@ impl Input {
             return true;
         }
         false
+    }
+
+    pub fn escape(&self) -> bool {
+        self.escape
     }
 }
 
@@ -353,6 +389,9 @@ impl<B: Bus> BusDevice<B> for Input {
             let keyboard = self.event_pump.keyboard_state();
             if keyboard.is_scancode_pressed(Scancode::F1) {
                 self.debug = true;
+            }
+            if keyboard.is_scancode_pressed(Scancode::Escape) {
+                self.escape = true;
             }
         }
         0
