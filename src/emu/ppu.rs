@@ -168,6 +168,9 @@ impl Ppu {
                 // sprite origins are in the bottom right on gameboy
                 // we translate it to make the math simpler
                 let y = y.wrapping_sub(16);
+                // TODO i think there is a bug here. In 16 height mode,
+                // the index of the chr's final bit should always be masked out
+                // to zero. I think if I do that it will fix some subtle sprite bugs
                 let chr_idx = obj[2] as usize;
                 let attr = obj[3];
                 // y offset within the sprite intersecting with ly
