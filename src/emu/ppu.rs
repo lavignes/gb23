@@ -69,6 +69,7 @@ impl Ppu {
         }
     }
 
+    #[inline]
     fn bg_color(&self, bits: u8, attr: u8) -> (u32, u8) {
         // TODO: CGB BG priority
         let (index, z) = match bits {
@@ -88,6 +89,7 @@ impl Ppu {
         (color, z)
     }
 
+    #[inline]
     fn obj_color(&self, bits: u8, attr: u8) -> (u32, u8) {
         // first color is always transparent
         if bits == 0 {

@@ -1,5 +1,6 @@
 use core::slice;
 use std::{
+    f32::consts::E,
     fs::File,
     io::{self, Read},
     mem,
@@ -73,8 +74,8 @@ fn main_real(args: Args) -> Result<(), String> {
         .read_to_end(&mut rom)
         .map_err(|e| format!("failed to read ROM file: {e}"))?;
     let mut bios_data = Vec::new();
-    if let Some(bios) = args.bios {
-        File::open(&bios)
+    if let Some(bios) = &args.bios {
+        File::open(bios)
             .map_err(|e| format!("failed to open BIOS file: {e}"))?
             .read_to_end(&mut bios_data)
             .map_err(|e| format!("failed to read BIOS file: {e}"))?;
@@ -128,6 +129,12 @@ fn main_real(args: Args) -> Result<(), String> {
     let mbc = Mbc1::new(&rom, &mut sram);
     let mut emu = Emu::new(bios_data, mbc, Input::new(event_pump));
     emu.reset();
+    if args.bios.is_none() {
+        // skip bios
+        let (cpu, mut cpu_view) = emu.cpu_view();
+        cpu.set_wide_register(WideRegister::PC, 0x100);
+        cpu_view.write(Port::BIOS, 0x01);
+    }
 
     let debug_mode = Arc::new(AtomicBool::new(args.debug));
     signal_hook::flag::register(signal_hook::consts::SIGUSR1, debug_mode.clone())
@@ -209,7 +216,8 @@ fn main_real(args: Args) -> Result<(), String> {
                             "x" => {
                                 if parts.len() > 1 {
                                     if let Ok(addr) = u16::from_str_radix(&parts[1], 16) {
-                                        let value = emu.cpu_read(addr);
+                                        let (_, mut cpu_view) = emu.cpu_view();
+                                        let value = cpu_view.read(addr);
                                         println!("{value:02X}");
                                         continue;
                                     }

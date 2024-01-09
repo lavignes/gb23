@@ -55,6 +55,7 @@ enum Condition {
 }
 
 impl Cpu {
+    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
@@ -100,7 +101,7 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn set_register(&mut self, reg: Register, value: u8) {
+    pub fn set_register(&mut self, reg: Register, value: u8) {
         match reg {
             Register::A => self.af[1] = value,
             Register::F => self.af[0] = value,
@@ -133,7 +134,7 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn set_wide_register(&mut self, reg: WideRegister, value: u16) {
+    pub fn set_wide_register(&mut self, reg: WideRegister, value: u16) {
         match reg {
             WideRegister::PC => self.pc = value,
             WideRegister::SP => self.sp = value,

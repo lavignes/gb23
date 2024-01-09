@@ -63,55 +63,12 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
     }
 
     pub fn reset(&mut self) {
-        let Self {
-            ref bios_data,
-            ref mut cpu,
-            ref mut mbc,
-            ref mut ppu,
-            ref mut input,
-            ref mut lcd,
-            ref mut wram,
-            ref mut hram,
-            ref mut iflags,
-            ref mut bios,
-            ref mut svbk,
-            ref mut sc,
-            ref mut div,
-            ref mut tima,
-            ref mut tma,
-            ref mut tac,
-            ref mut ie,
-            ..
-        } = self;
-        let mut cpu_view = CpuView {
-            bios_data,
-            mbc,
-            ppu,
-            input,
-            wram,
-            hram,
-            iflags,
-            bios,
-            svbk,
-            sc,
-            div,
-            tima,
-            tma,
-            tac,
-            ie,
-        };
+        let (cpu, mut cpu_view) = self.cpu_view();
         cpu.reset(&mut cpu_view);
-        mbc.reset(&mut NoopView {});
-        ppu.reset(&mut PpuView {
-            lcd,
-            bios_data,
-            mbc,
-            wram,
-            iflags,
-            bios,
-            svbk,
-        });
-        input.reset(&mut NoopView {});
+        let (ppu, mut ppu_view) = self.ppu_view();
+        ppu.reset(&mut ppu_view);
+        self.input.reset(&mut NoopView {});
+        self.mbc.reset(&mut NoopView {});
         self.vblanked = false;
         self.iflags = 0;
         self.svbk = 0;
@@ -126,54 +83,10 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
     }
 
     pub fn tick(&mut self) -> usize {
-        let Self {
-            ref bios_data,
-            ref mut cpu,
-            ref mut mbc,
-            ref mut ppu,
-            ref mut input,
-            ref mut lcd,
-            ref mut wram,
-            ref mut hram,
-            ref mut iflags,
-            ref mut bios,
-            ref mut svbk,
-            ref mut sc,
-            ref mut div,
-            ref mut tima,
-            ref mut tma,
-            ref mut tac,
-            ref mut ie,
-            ..
-        } = self;
-        let mut cpu_view = CpuView {
-            bios_data,
-            mbc,
-            ppu,
-            input,
-            wram,
-            hram,
-            iflags,
-            bios,
-            svbk,
-            sc,
-            div,
-            tima,
-            tma,
-            tac,
-            ie,
-        };
+        let (cpu, mut cpu_view) = self.cpu_view();
         let cycles = cpu.tick(&mut cpu_view);
         // TODO: mbc tick?
-        let mut ppu_view = PpuView {
-            lcd,
-            bios_data,
-            mbc,
-            wram,
-            iflags,
-            bios,
-            svbk,
-        };
+        let (ppu, mut ppu_view) = self.ppu_view();
         let mut vblank = 0;
         for _ in 0..cycles {
             vblank += ppu.tick(&mut ppu_view);
@@ -181,7 +94,7 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
         if vblank != 0 {
             self.vblanked = true;
         }
-        input.tick(&mut NoopView {});
+        self.input.tick(&mut NoopView {});
         // timers
         self.div_counter += cycles;
         // TODO: verify this value needs to be 1024 vs 256
@@ -214,27 +127,33 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
         cycles
     }
 
+    #[inline]
     pub fn vblanked(&mut self) -> bool {
         let value = self.vblanked;
         self.vblanked = false;
         value
     }
 
+    #[inline]
     pub fn lcd(&self) -> &[[u32; 160]; 144] {
         &self.lcd
     }
 
+    #[inline]
     pub fn input_mut(&mut self) -> &mut I {
         &mut self.input
     }
 
+    #[inline]
     pub fn cpu(&self) -> &Cpu {
         &self.cpu
     }
 
-    pub fn cpu_read(&mut self, addr: u16) -> u8 {
+    #[inline(always)]
+    pub fn cpu_view(&mut self) -> (&mut Cpu, CpuView<M, Ppu, I>) {
         let Self {
             ref bios_data,
+            ref mut cpu,
             ref mut mbc,
             ref mut ppu,
             ref mut input,
@@ -251,28 +170,57 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
             ref mut tac,
             ..
         } = self;
-        let mut cpu_view = CpuView {
-            bios_data,
-            mbc,
+        (
+            cpu,
+            CpuView {
+                bios_data,
+                mbc,
+                ppu,
+                input,
+                wram,
+                hram,
+                iflags,
+                bios,
+                svbk,
+                sc,
+                div,
+                tima,
+                tma,
+                tac,
+                ie,
+            },
+        )
+    }
+
+    #[inline(always)]
+    fn ppu_view(&mut self) -> (&mut Ppu, PpuView<M>) {
+        let Self {
+            ref mut lcd,
+            ref bios_data,
+            ref mut mbc,
+            ref mut ppu,
+            ref mut wram,
+            ref mut iflags,
+            ref mut bios,
+            ref mut svbk,
+            ..
+        } = self;
+        (
             ppu,
-            input,
-            wram,
-            hram,
-            iflags,
-            bios,
-            svbk,
-            sc,
-            div,
-            tima,
-            tma,
-            tac,
-            ie,
-        };
-        cpu_view.read(addr)
+            PpuView {
+                lcd,
+                bios_data,
+                mbc,
+                wram,
+                iflags,
+                bios,
+                svbk,
+            },
+        )
     }
 }
 
-struct CpuView<'a, M, P, I> {
+pub struct CpuView<'a, M, P, I> {
     bios_data: &'a [u8],
     mbc: &'a mut M,
     ppu: &'a mut P,
@@ -399,6 +347,7 @@ pub struct PpuView<'a, M> {
 }
 
 impl<'a, M: BusDevice<NoopView>> Bus for PpuView<'a, M> {
+    #[inline]
     fn lcd_mut(&mut self) -> &mut [[u32; 160]; 144] {
         self.lcd
     }
