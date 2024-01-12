@@ -11,7 +11,7 @@ pub mod mbc;
 mod ppu;
 
 pub struct Emu<M, P, I> {
-    bios_data: Vec<u8>,
+    boot_data: Vec<u8>,
     vblanked: bool,
     cpu: Cpu,
     mbc: M,
@@ -21,7 +21,7 @@ pub struct Emu<M, P, I> {
     wram: [[u8; 4096]; 8],
     hram: [u8; 256],
     iflags: u8,
-    bios: u8,
+    boot: u8,
     svbk: u8,
     sc: u8,
     div: u8,
@@ -34,12 +34,12 @@ pub struct Emu<M, P, I> {
 }
 
 impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
-    pub fn new(bios_data: Vec<u8>, mbc: M, input: I) -> Self {
+    pub fn new(boot_data: Vec<u8>, mbc: M, input: I) -> Self {
         let cpu = Cpu::new();
         let ppu = Ppu::new();
         let lcd = [[0; 160]; 144];
         Self {
-            bios_data,
+            boot_data,
             vblanked: false,
             cpu,
             mbc,
@@ -49,7 +49,7 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
             wram: [[0xFF; 4096]; 8],
             hram: [0xFF; 256],
             iflags: 0,
-            bios: 0,
+            boot: 0,
             svbk: 0,
             sc: 0,
             div: 0,
@@ -152,7 +152,7 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
     #[inline(always)]
     pub fn cpu_view(&mut self) -> (&mut Cpu, CpuView<M, Ppu, I>) {
         let Self {
-            ref bios_data,
+            ref boot_data,
             ref mut cpu,
             ref mut mbc,
             ref mut ppu,
@@ -160,7 +160,7 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
             ref mut wram,
             ref mut hram,
             ref mut iflags,
-            ref mut bios,
+            ref mut boot,
             ref mut svbk,
             ref mut ie,
             ref mut sc,
@@ -173,14 +173,14 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
         (
             cpu,
             CpuView {
-                bios_data,
+                boot_data,
                 mbc,
                 ppu,
                 input,
                 wram,
                 hram,
                 iflags,
-                bios,
+                boot,
                 svbk,
                 sc,
                 div,
@@ -196,12 +196,12 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
     fn ppu_view(&mut self) -> (&mut Ppu, PpuView<M>) {
         let Self {
             ref mut lcd,
-            ref bios_data,
+            ref boot_data,
             ref mut mbc,
             ref mut ppu,
             ref mut wram,
             ref mut iflags,
-            ref mut bios,
+            ref mut boot,
             ref mut svbk,
             ..
         } = self;
@@ -209,11 +209,11 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
             ppu,
             PpuView {
                 lcd,
-                bios_data,
+                boot_data,
                 mbc,
                 wram,
                 iflags,
-                bios,
+                boot,
                 svbk,
             },
         )
@@ -221,14 +221,14 @@ impl<M: BusDevice<NoopView>, I: BusDevice<NoopView>> Emu<M, Ppu, I> {
 }
 
 pub struct CpuView<'a, M, P, I> {
-    bios_data: &'a [u8],
+    boot_data: &'a [u8],
     mbc: &'a mut M,
     ppu: &'a mut P,
     input: &'a mut I,
     wram: &'a mut [[u8; 4096]; 8],
     hram: &'a mut [u8; 256],
     iflags: &'a mut u8,
-    bios: &'a mut u8,
+    boot: &'a mut u8,
     svbk: &'a mut u8,
     sc: &'a mut u8,
     div: &'a mut u8,
@@ -242,7 +242,7 @@ impl<'a, M: BusDevice<NoopView>, I: BusDevice<NoopView>> Bus for CpuView<'a, M, 
     fn read(&mut self, addr: u16) -> u8 {
         match addr {
             // BIOS
-            0x0000..=0x00FF if *self.bios == 0 => self.bios_data[addr as usize],
+            0x0000..=0x00FF if *self.boot == 0 => self.boot_data[addr as usize],
             // cart
             0x0000..=0x7FFF => self.mbc.read(addr),
             // VRAM
@@ -270,7 +270,7 @@ impl<'a, M: BusDevice<NoopView>, I: BusDevice<NoopView>> Bus for CpuView<'a, M, 
             Port::TAC => *self.tac,
             Port::IF => *self.iflags,
             Port::KEY1 => todo!(),
-            Port::BIOS => *self.bios,
+            Port::BOOT => *self.boot,
             // PPU IO ports
             Port::LCDC..=Port::WX
             | Port::VBK
@@ -314,7 +314,7 @@ impl<'a, M: BusDevice<NoopView>, I: BusDevice<NoopView>> Bus for CpuView<'a, M, 
             Port::TAC => *self.tac = value & 0x07,
             Port::IF => *self.iflags = value & 0x1F,
             Port::KEY1 => todo!(),
-            Port::BIOS => *self.bios = value,
+            Port::BOOT => *self.boot = value,
             // PPU IO ports
             Port::LCDC..=Port::WX
             | Port::VBK
@@ -338,11 +338,11 @@ impl Bus for NoopView {}
 
 pub struct PpuView<'a, M> {
     lcd: &'a mut [[u32; 160]; 144],
-    bios_data: &'a [u8],
+    boot_data: &'a [u8],
     mbc: &'a mut M,
     wram: &'a mut [[u8; 4096]; 8],
     iflags: &'a mut u8,
-    bios: &'a mut u8,
+    boot: &'a mut u8,
     svbk: &'a mut u8,
 }
 
@@ -355,7 +355,7 @@ impl<'a, M: BusDevice<NoopView>> Bus for PpuView<'a, M> {
     fn read(&mut self, addr: u16) -> u8 {
         match addr {
             // BIOS
-            0x0000..=0x00FF if *self.bios == 0 => self.bios_data[addr as usize],
+            0x0000..=0x00FF if *self.boot == 0 => self.boot_data[addr as usize],
             // cart
             0x0000..=0x7FFF | 0xA000..=0xBFFF => self.mbc.read(addr),
             // WRAM

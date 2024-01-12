@@ -1,6 +1,5 @@
 use core::slice;
 use std::{
-    f32::consts::E,
     fs::File,
     io::{self, Read},
     mem,
@@ -17,12 +16,13 @@ use clap::Parser;
 use gb23::emu::{
     bus::{Bus, BusDevice, Port},
     cpu::{Flag, WideRegister},
-    mbc::{mbc0::Mbc0, mbc1::Mbc1},
+    mbc::mbc1::Mbc1,
     Emu,
 };
 use rustyline::{error::ReadlineError, Config, DefaultEditor};
 use sdl2::{
-    audio::{AudioQueue, AudioSpec, AudioSpecDesired},
+    audio::{AudioQueue, AudioSpecDesired},
+    event::{Event, WindowEvent},
     keyboard::Scancode,
     pixels::PixelFormatEnum,
     rect::Rect,
@@ -36,9 +36,9 @@ struct Args {
     /// Path to ROM file
     rom: PathBuf,
 
-    /// Path to BIOS file
+    /// Path to BIOS/BOOT ROM file
     #[arg(short, long)]
-    bios: Option<PathBuf>,
+    boot: Option<PathBuf>,
 
     /// One of `TRACE`, `DEBUG`, `INFO`, `WARN`, or `ERROR`
     #[arg(short, long, default_value_t = Level::INFO)]
@@ -73,11 +73,11 @@ fn main_real(args: Args) -> Result<(), String> {
         .map_err(|e| format!("failed to open ROM file: {e}"))?
         .read_to_end(&mut rom)
         .map_err(|e| format!("failed to read ROM file: {e}"))?;
-    let mut bios_data = Vec::new();
-    if let Some(bios) = &args.bios {
-        File::open(bios)
+    let mut boot_data = Vec::new();
+    if let Some(boot) = &args.boot {
+        File::open(boot)
             .map_err(|e| format!("failed to open BIOS file: {e}"))?
-            .read_to_end(&mut bios_data)
+            .read_to_end(&mut boot_data)
             .map_err(|e| format!("failed to read BIOS file: {e}"))?;
     }
     let sdl = sdl2::init().map_err(|e| format!("failed to initialize SDL2: {e}"))?;
@@ -103,7 +103,7 @@ fn main_real(args: Args) -> Result<(), String> {
         .map_err(|e| format!("failed to open audio device: {e}"))?;
     let mut buf = Vec::new();
     for i in 0..(4096 * 5) {
-        buf.push(((i as f32) * 0.05).sin());
+        buf.push(((i as f32) * 0.05).sin() * 0.1);
     }
     audio_queue.queue_audio(&buf).unwrap();
     audio_queue.resume();
@@ -127,13 +127,14 @@ fn main_real(args: Args) -> Result<(), String> {
 
     let mut sram = vec![0; 8192 * 4];
     let mbc = Mbc1::new(&rom, &mut sram);
-    let mut emu = Emu::new(bios_data, mbc, Input::new(event_pump));
+    let mut emu = Emu::new(boot_data, mbc, Input::new(event_pump));
     emu.reset();
-    if args.bios.is_none() {
-        // skip bios
+    if args.boot.is_none() {
+        // skip boot rom
         let (cpu, mut cpu_view) = emu.cpu_view();
         cpu.set_wide_register(WideRegister::PC, 0x100);
-        cpu_view.write(Port::BIOS, 0x01);
+        cpu_view.write(Port::BOOT, 0x01);
+        cpu_view.write(Port::LCDC, 0x81);
     }
 
     let debug_mode = Arc::new(AtomicBool::new(args.debug));

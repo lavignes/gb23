@@ -38,7 +38,7 @@ impl Port {
 
     pub const KEY1: u16 = 0xFF4D;
     pub const VBK: u16 = 0xFF4F;
-    pub const BIOS: u16 = 0xFF50;
+    pub const BOOT: u16 = 0xFF50;
 
     pub const HMDA1: u16 = 0xFF51;
     pub const HMDA2: u16 = 0xFF52;
