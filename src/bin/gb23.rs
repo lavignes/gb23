@@ -145,6 +145,8 @@ fn main_real(args: Args) -> Result<(), String> {
         .ok();
     let mut breakpoints = Vec::new();
 
+    let mut rl = DefaultEditor::with_config(Config::builder().auto_add_history(true).build())
+        .map_err(|e| format!("failed to initialize line editor: {e}"))?;
     let mut start = Instant::now();
     let mut frames = 0;
     let mut cycles = 0;
@@ -153,9 +155,6 @@ fn main_real(args: Args) -> Result<(), String> {
             debug_mode.store(true, Ordering::Relaxed);
         }
         if debug_mode.load(Ordering::Relaxed) {
-            let mut rl =
-                DefaultEditor::with_config(Config::builder().auto_add_history(true).build())
-                    .map_err(|e| format!("failed to initialize line editor: {e}"))?;
             loop {
                 #[rustfmt::skip]
                 println!(
@@ -225,10 +224,19 @@ fn main_real(args: Args) -> Result<(), String> {
                                 }
                                 println!("?");
                             }
-                            "q" => {
-                                break 'da_loop;
+                            "p" => {
+                                if parts.len() > 2 {
+                                    if let Ok(addr) = u16::from_str_radix(&parts[1], 16) {
+                                        if let Ok(value) = u8::from_str_radix(&parts[2], 16) {
+                                            let (_, mut cpu_view) = emu.cpu_view();
+                                            cpu_view.write(addr, value);
+                                            continue;
+                                        }
+                                    }
+                                }
+                                println!("?");
                             }
-                            "info" => {
+                            "i" => {
                                 if parts.len() > 1 {
                                     match parts[1].as_str() {
                                         "b" => {
@@ -241,6 +249,9 @@ fn main_real(args: Args) -> Result<(), String> {
                                     continue;
                                 }
                                 println!("?");
+                            }
+                            "q" => {
+                                break 'da_loop;
                             }
                             _ => println!("?"),
                         }

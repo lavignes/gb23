@@ -216,22 +216,26 @@ impl Ppu {
             if self.ly < self.wy {
                 return;
             }
-            // The wx is 7 pixels to the left of the rendered window
-            // this is similar to how sprites have weird offsets
-            if self.wx < 7 {
-                return;
-            }
             let win_data = if (self.lcdc & 0x40) == 0 {
                 &self.bg_data1
             } else {
                 &self.bg_data2
             };
             let win_y = (self.ly - self.wy) as usize;
-            let win_x = (self.wx as usize) - 7;
             // offset into the 8 2bpp bytes on the current line (assuming no flip)
             let chr_line_offset = 2 * (win_y % 8);
-            for dot in win_x..160 {
-                let win_tile_idx = (dot / 8) + ((win_y / 8) * 32);
+            for dot in 0..160 {
+                // kinda gross, but a WX=7 means its on the very
+                // left of the screen
+                let win_x = if self.wx < 7 {
+                    dot + (7 - (self.wx as usize))
+                } else {
+                    if dot < ((self.wx as usize) - 7) {
+                        continue;
+                    }
+                    dot - ((self.wx as usize) - 7)
+                };
+                let win_tile_idx = (win_x / 8) + ((win_y / 8) * 32);
                 let chr_idx = win_data[0][win_tile_idx];
                 let attr = win_data[1][win_tile_idx];
                 let chr_data_offset = if (self.lcdc & 0x10) != 0 {
@@ -239,7 +243,7 @@ impl Ppu {
                 } else {
                     0x1000usize.wrapping_add_signed(chr_idx as i8 as isize * 16)
                 };
-                let chr_x = dot % 8;
+                let chr_x = win_x % 8;
                 let lo = self.chr_data[0][chr_data_offset + chr_line_offset];
                 let hi = self.chr_data[0][chr_data_offset + chr_line_offset + 1];
                 // TODO yuck
