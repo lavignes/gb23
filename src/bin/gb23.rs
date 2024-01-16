@@ -22,7 +22,6 @@ use gb23::emu::{
 use rustyline::{error::ReadlineError, Config, DefaultEditor};
 use sdl2::{
     audio::{AudioQueue, AudioSpecDesired},
-    event::{Event, WindowEvent},
     keyboard::Scancode,
     pixels::PixelFormatEnum,
     rect::Rect,

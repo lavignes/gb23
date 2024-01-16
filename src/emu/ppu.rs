@@ -227,6 +227,7 @@ impl Ppu {
             for dot in 0..160 {
                 // kinda gross, but a WX=7 means its on the very
                 // left of the screen
+                // TODO: Im sure I can make something prettier
                 let win_x = if self.wx < 7 {
                     dot + (7 - (self.wx as usize))
                 } else {

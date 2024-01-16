@@ -5,10 +5,9 @@ edition = "2021"
 publish = false
 
 [profile.release]
-strip = true
+debug = true
 lto = true
 codegen-units = 1
-panic = "abort"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
