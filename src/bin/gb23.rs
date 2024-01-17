@@ -19,7 +19,10 @@ use gb23::emu::{
     mbc::mbc1::Mbc1,
     Emu,
 };
-use rustyline::{error::ReadlineError, Config, DefaultEditor};
+use rustyline::{
+    completion::Completer, error::ReadlineError, hint::HistoryHinter, Completer, Config, Context,
+    Editor, Helper, Highlighter, Hinter, Validator,
+};
 use sdl2::{
     audio::{AudioQueue, AudioSpecDesired},
     keyboard::Scancode,
@@ -64,6 +67,56 @@ fn main() -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+struct LineCompleter {
+    completions: Vec<String>,
+}
+
+impl LineCompleter {
+    fn new() -> Self {
+        Self {
+            completions: Vec::new(),
+        }
+    }
+
+    fn add<S: ToString>(&mut self, string: S) {
+        self.completions.push(string.to_string());
+    }
+}
+
+impl Completer for LineCompleter {
+    type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        _pos: usize,
+        _ctx: &Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let words = line.split_whitespace();
+        if let Some(last) = words.last() {
+            let mut all_completions = Vec::new();
+            for completion in self.completions.iter() {
+                if completion.starts_with(last) {
+                    all_completions.push(completion.clone());
+                }
+            }
+            if !all_completions.is_empty() {
+                let pos = line.rfind(last).unwrap();
+                return Ok((pos, all_completions));
+            }
+        }
+        Ok((0, Vec::new()))
+    }
+}
+
+#[derive(Helper, Completer, Hinter, Highlighter, Validator)]
+struct LineHelper {
+    #[rustyline(Hinter)]
+    hinter: HistoryHinter,
+    #[rustyline(Completer)]
+    completer: LineCompleter,
 }
 
 fn main_real(args: Args) -> Result<(), String> {
@@ -144,8 +197,14 @@ fn main_real(args: Args) -> Result<(), String> {
         .ok();
     let mut breakpoints = Vec::new();
 
-    let mut rl = DefaultEditor::with_config(Config::builder().auto_add_history(true).build())
+    let mut rl = Editor::with_config(Config::builder().auto_add_history(true).build())
         .map_err(|e| format!("failed to initialize line editor: {e}"))?;
+    rl.set_helper(Some(LineHelper {
+        hinter: HistoryHinter::new(),
+        completer: LineCompleter::new(),
+    }));
+    // TODO: add all ports and symbols
+    rl.helper_mut().unwrap().completer.add("SCX");
     let mut start = Instant::now();
     let mut frames = 0;
     let mut cycles = 0;
