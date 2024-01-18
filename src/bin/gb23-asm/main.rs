@@ -290,6 +290,7 @@ impl<'a> Asm<'a> {
             // directive?
             if self.peek()? == Tok::DIR {
                 self.directive()?;
+                self.eol()?;
                 continue;
             }
             // must be mnemonic
@@ -641,6 +642,18 @@ impl<'a> Asm<'a> {
         }
         let toks = self.tok_int.intern(&toks);
         self.macros.push(Macro::new(label.string(), toks));
+        Ok(())
+    }
+
+    fn directive(&mut self) -> io::Result<()> {
+        if self.str_like(Dir::ADJ) {
+            self.eat();
+            let expr = self.expr()?;
+            let expr = self.const_16(expr)?;
+            self.set_pc(expr);
+            return Ok(());
+        }
+        if self.str_like(Dir::)
         Ok(())
     }
 }

@@ -8,18 +8,18 @@ use std::{
 pub struct Dir(&'static str);
 
 impl Dir {
-    pub const ADJ: Self = Self("@ADJ");
-    pub const DB: Self = Self("@DB");
-    pub const DW: Self = Self("@DW");
-    pub const END: Self = Self("@END");
-    pub const IF: Self = Self("@IF");
-    pub const IFDEF: Self = Self("@IFDEF");
-    pub const IFNDEF: Self = Self("@IFNDEF");
-    pub const INCBIN: Self = Self("@INCBIN");
-    pub const INCLUDE: Self = Self("@INCLUDE");
-    pub const MACRO: Self = Self("@MACRO");
-    pub const PAD: Self = Self("@PAD");
-    pub const SEG: Self = Self("@SEG");
+    pub const ADJ: Self = Self("ADJ");
+    pub const DB: Self = Self("DB");
+    pub const DW: Self = Self("DW");
+    pub const END: Self = Self("END");
+    pub const IF: Self = Self("IF");
+    pub const IFDEF: Self = Self("IFDEF");
+    pub const IFNDEF: Self = Self("IFNDEF");
+    pub const INCBIN: Self = Self("INCBIN");
+    pub const INCLUDE: Self = Self("INCLUDE");
+    pub const MACRO: Self = Self("MACRO");
+    pub const PAD: Self = Self("PAD");
+    pub const SEGMENT: Self = Self("SEGMENT");
 }
 
 impl AsRef<str> for Dir {
@@ -40,7 +40,7 @@ const DIRECTIVES: &[Dir] = &[
     Dir::INCLUDE,
     Dir::MACRO,
     Dir::PAD,
-    Dir::SEG,
+    Dir::SEGMENT,
 ];
 
 #[derive(PartialEq, Eq)]
@@ -449,7 +449,7 @@ impl<R: Read + Seek> TokStream for Lexer<R> {
             // idents and single chars
             Some(c) => {
                 while let Some(c) = self.reader.peek()? {
-                    if !c.is_ascii_alphanumeric() && !b"_.@".contains(&c) {
+                    if !c.is_ascii_alphanumeric() && !b"_.".contains(&c) {
                         break;
                     }
                     self.reader.eat();
@@ -462,9 +462,6 @@ impl<R: Read + Seek> TokStream for Lexer<R> {
                     {
                         self.stash = Some(Tok::DIR);
                         return Ok(Tok::DIR);
-                    }
-                    if self.string.starts_with("@") {
-                        return Err(self.err("unknown directive"));
                     }
                     if MNEMONICS
                         .binary_search_by(|mne| mne.0.as_bytes().cmp(self.string.as_bytes()))
