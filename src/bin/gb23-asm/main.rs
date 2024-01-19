@@ -653,7 +653,27 @@ impl<'a> Asm<'a> {
             self.set_pc(expr);
             return Ok(());
         }
-        if self.str_like(Dir::)
+        if self.str_like(Dir::DB) {
+            self.eat();
+            loop {
+                if self.peek()? == Tok::STR {
+                    let string = self.str_intern();
+                    self.eat();
+                    if self.emit {
+                        for b in string.bytes() {}
+                    }
+                } else {
+                    let expr = self.expr()?;
+                    if self.emit {
+                        let expr = self.const_8(expr)?;
+                    }
+                }
+                if self.peek()? != Tok::COMMA {
+                    break;
+                }
+                self.eat();
+            }
+        }
         Ok(())
     }
 }
